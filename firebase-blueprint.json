@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile",
+      "description": "User account information and roles",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "bookings": {
+      "title": "Booking/Order",
+      "description": "Reservation or ordering data for store, farm, or stay items",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "category": { "type": "string", "enum": ["store", "farm", "stay"] },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "string" },
+              "productName": { "type": "string" },
+              "quantity": { "type": "number" },
+              "price": { "type": "number" }
+            }
+          }
+        },
+        "totalPrice": { "type": "number" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "userName": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled", "shipped"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "category", "items", "totalPrice", "userName", "phone", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "User profiles"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "bookings",
+      "description": "Customer reservations and orders"
+    }
+  }
+}
