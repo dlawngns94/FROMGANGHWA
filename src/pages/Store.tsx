@@ -31,35 +31,35 @@ const Store: React.FC = () => {
       </header>
 
       {/* Product List Grid with design borders */}
-      <div className="grid grid-cols-1 md:grid-cols-3 border-b border-brand-line">
+      <div className="grid grid-cols-2 md:grid-cols-3 border-b border-brand-line">
         {STORE_ITEMS.map((item, idx) => (
-          <div key={item.id} className={`group flex flex-col p-10 bg-white hover:bg-brand-bg transition-colors border-brand-line ${idx % 3 !== 2 ? 'md:border-r' : ''}`}>
-            <div className="relative overflow-hidden aspect-[4/5] mb-8">
+          <div key={item.id} className={`group flex flex-col p-4 sm:p-10 bg-white hover:bg-brand-bg transition-colors border-brand-line ${idx % 2 !== 1 ? 'border-r md:border-r-0' : ''} ${idx % 3 !== 2 ? 'md:border-r' : ''} border-b md:border-b-0`}>
+            <div className="relative overflow-hidden aspect-[4/5] mb-4 sm:mb-8">
               <img 
                 src={item.imageUrl} 
                 alt={item.name} 
                 className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute top-0 right-0 bg-brand-primary text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1">{item.unit}</div>
+              <div className="absolute top-0 right-0 bg-brand-primary text-white text-[7px] sm:text-[9px] font-bold uppercase tracking-widest px-2 sm:px-3 py-1">{item.unit}</div>
             </div>
             
-            <div className="flex-1 space-y-3">
-              <div className="text-[10px] uppercase tracking-widest text-brand-muted font-sans italic">Premium Produce</div>
-              <h3 className="text-3xl font-light italic">{item.name}</h3>
-              <p className="text-sm text-brand-muted leading-relaxed font-sans font-light line-clamp-3">
+            <div className="flex-1 space-y-1 sm:space-y-3">
+              <div className="text-[8px] sm:text-[10px] uppercase tracking-widest text-brand-muted font-sans italic">Premium Produce</div>
+              <h3 className="text-xl sm:text-3xl font-light italic">{item.name}</h3>
+              <p className="hidden sm:block text-sm text-brand-muted leading-relaxed font-sans font-light line-clamp-3">
                 {item.description}
               </p>
             </div>
             
-            <div className="pt-10 flex items-center justify-between">
-              <div className="text-2xl font-bold tracking-tighter italic">{item.price.toLocaleString()} KRW</div>
+            <div className="pt-4 sm:pt-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="text-sm sm:text-2xl font-bold tracking-tighter italic">{item.price.toLocaleString()} KRW</div>
               <button 
                 onClick={() => handleOrder(item.id)}
-                className="flex items-center space-x-2 bg-brand-primary text-white px-8 py-3 rounded-full text-xs font-bold tracking-widest hover:opacity-90 transition-all uppercase"
+                className="flex items-center justify-center space-x-2 bg-brand-primary text-white px-4 sm:px-8 py-2 sm:py-3 rounded-full text-[9px] sm:text-xs font-bold tracking-widest hover:opacity-90 transition-all uppercase"
               >
-                <ShoppingCart size={14} />
-                <span>Order Now</span>
+                <ShoppingCart size={12} className="sm:w-[14px]" />
+                <span>Order</span>
               </button>
             </div>
           </div>

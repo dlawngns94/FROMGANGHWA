@@ -27,34 +27,37 @@ const Farm: React.FC = () => {
         </p>
       </div>
 
-      {/* Experience List */}
-      <div className="space-y-16">
-        {FARM_ITEMS.map((item, idx) => (
-          <div key={item.id} className={`flex flex-col md:flex-row items-center gap-12 ${idx % 2 === 1 ? 'md:flex-row-reverse' : ''}`}>
-            <div className="w-full md:w-1/2 relative h-[500px] overflow-hidden rounded-[40px] shadow-2xl">
+      {/* Experience List Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-6 md:gap-12 pb-20 px-4">
+        {FARM_ITEMS.map((item) => (
+          <div key={item.id} className="flex flex-col space-y-4 group">
+            <div className="relative aspect-square overflow-hidden rounded-2xl md:rounded-[40px] shadow-lg md:shadow-2xl">
               <img 
                 src={item.imageUrl} 
                 alt={item.name} 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                 referrerPolicy="no-referrer"
               />
+              <div className="absolute top-4 left-4">
+                <div className="text-[8px] md:text-xs uppercase tracking-widest bg-[#5A5A40] text-white px-2 md:px-3 py-1 rounded shadow-lg">SEASONAL</div>
+              </div>
             </div>
-            <div className="w-full md:w-1/2 space-y-6">
-              <div className="text-xs uppercase tracking-[0.3em] bg-[#5A5A40] text-white inline-block px-3 py-1 rounded">SEASONAL EXPERIENCE</div>
-              <h2 className="text-4xl font-bold">{item.name}</h2>
-              <p className="text-lg text-[#8E9299] leading-relaxed">
+            
+            <div className="space-y-2 md:space-y-4 px-1">
+              <h2 className="text-lg md:text-3xl font-bold tracking-tight line-clamp-1">{item.name}</h2>
+              <p className="text-[10px] md:text-base text-[#8E9299] leading-relaxed line-clamp-2">
                 {item.description}
-                <br /><br />
-                직접 흙을 만지며 생명의 소중함을 배우고, 수확한 신선한 열매를 그 자리에서 맛볼 수 있는 특별한 패밀리 프로그램입니다. 모든 장비는 무상으로 대여해 드립니다.
               </p>
-              <div className="text-2xl font-bold">인당 {item.price.toLocaleString()}원</div>
-              <button 
-                onClick={() => handleBooking(item.id)}
-                className="w-full md:w-auto bg-[#5A5A40] text-white px-10 py-4 rounded-full font-bold flex items-center justify-center space-x-2 hover:bg-[#4A4A35] transition-all transform hover:scale-105"
-              >
-                <Calendar size={20} />
-                <span>체험 예약하기</span>
-              </button>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4 pt-2">
+                <div className="text-sm md:text-xl font-bold">{item.price.toLocaleString()}원</div>
+                <button 
+                  onClick={() => handleBooking(item.id)}
+                  className="w-full md:w-auto bg-[#5A5A40] text-white px-4 md:px-6 py-2 md:py-3 rounded-full text-[10px] md:text-sm font-bold flex items-center justify-center space-x-2 hover:bg-[#4A4A35] transition-all"
+                >
+                  <Calendar size={14} className="md:w-4 md:h-4" />
+                  <span>예약하기</span>
+                </button>
+              </div>
             </div>
           </div>
         ))}

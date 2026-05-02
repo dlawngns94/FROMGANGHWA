@@ -32,40 +32,40 @@ const Stay: React.FC = () => {
         </div>
       </header>
 
-      {/* Stay List Split View */}
-      <div className="flex flex-col border-b border-brand-line">
+      {/* Stay List Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 border-b border-brand-line">
         {STAY_ITEMS.map((item, idx) => (
-          <div key={item.id} className={`flex flex-col md:flex-row border-brand-line ${idx !== STAY_ITEMS.length - 1 ? 'border-b' : ''}`}>
-            <div className={`w-full md:w-[60%] h-[500px] overflow-hidden ${idx % 2 === 1 ? 'md:order-2' : ''}`}>
+          <div key={item.id} className={`flex flex-col bg-white border-brand-line border-b hover:bg-brand-bg transition-colors ${idx % 2 === 0 ? 'border-r md:border-r-0' : ''} ${idx % 3 !== 2 ? 'md:border-r' : ''}`}>
+            <div className="relative aspect-[4/3] overflow-hidden">
               <img 
                 src={item.imageUrl} 
                 alt={item.name} 
                 className="w-full h-full object-cover transition-transform duration-[2000ms] hover:scale-110"
                 referrerPolicy="no-referrer"
               />
+              <div className="absolute top-4 left-4">
+                <div className="text-[7px] sm:text-[9px] font-bold uppercase tracking-widest bg-brand-primary text-white px-2 py-1">PREMIUM stay</div>
+              </div>
             </div>
-            <div className={`w-full md:w-[40%] flex flex-col justify-center p-16 bg-white space-y-8 ${idx % 2 === 1 ? 'md:order-1' : ''}`}>
-              <div className="space-y-4">
-                <div className="text-[10px] uppercase tracking-widest text-brand-muted font-sans font-bold">Premium Accommodation</div>
-                <h3 className="text-4xl font-light italic">{item.name}</h3>
-                <div className="h-0.5 w-12 bg-brand-primary" />
-                <p className="text-brand-muted leading-relaxed font-sans font-light">
-                  {item.description} 강화도의 자연을 가장 가까이서 느낄 수 있는 공간으로 설계되었습니다. 사계절의 변화를 창을 통해 한 점의 그림처럼 감상하세요.
+            <div className="p-4 sm:p-10 flex flex-col flex-1 space-y-4">
+              <div className="space-y-1 sm:space-y-4">
+                <div className="text-[8px] sm:text-[10px] uppercase tracking-widest text-brand-muted font-sans font-bold">Premium Accommodation</div>
+                <h3 className="text-lg sm:text-4xl font-light italic leading-tight">{item.name}</h3>
+                <p className="hidden sm:block text-brand-muted leading-relaxed font-sans font-light line-clamp-3">
+                  {item.description} 강화도의 자연을 가장 가까이서 느낄 수 있는 공간입니다.
                 </p>
               </div>
               
-              <div className="flex justify-between items-center py-6 border-y border-brand-line">
-                <span className="text-xs uppercase tracking-widest text-brand-muted font-sans font-bold">Per Night</span>
-                <span className="text-2xl font-bold tracking-tighter italic">{item.price.toLocaleString()} KRW</span>
+              <div className="mt-auto pt-4 sm:pt-6 border-t border-brand-line flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                <span className="text-sm sm:text-2xl font-bold tracking-tighter italic">{item.price.toLocaleString()} KRW</span>
+                <button 
+                  onClick={() => handleBooking(item.id)}
+                  className="bg-brand-primary text-white py-2 sm:py-4 px-4 sm:px-8 rounded-full font-bold text-[9px] sm:text-xs tracking-[0.1em] sm:tracking-[0.2em] uppercase hover:opacity-90 transition-all flex items-center justify-center space-x-2"
+                >
+                  <Bed size={14} className="sm:w-4 sm:h-4" />
+                  <span>Reserve</span>
+                </button>
               </div>
-
-              <button 
-                onClick={() => handleBooking(item.id)}
-                className="bg-brand-primary text-white py-4 rounded-full font-bold text-xs tracking-[0.2em] uppercase hover:opacity-90 transition-all flex items-center justify-center space-x-3"
-              >
-                <Bed size={16} />
-                <span>Reserve Now</span>
-              </button>
             </div>
           </div>
         ))}

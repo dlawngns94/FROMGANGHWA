@@ -1,13 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LogIn, User, MapPin, ShoppingBag, Home, Calendar, Settings } from 'lucide-react';
+import { LogIn, User, MapPin, ShoppingBag, Home, Calendar, Settings, Menu, X } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { auth } from '../lib/firebase';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile, user } = useAuth();
   const location = useLocation();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const navItems = [
     { name: '홈', path: '/', icon: Home },
@@ -53,25 +54,85 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               ))}
             </div>
 
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2 md:space-x-6">
               {!authenticated ? (
-                <Link to="/login" className="text-xs font-semibold uppercase tracking-widest text-brand-muted hover:text-brand-ink transition-colors">
+                <Link to="/login" className="hidden sm:block text-xs font-semibold uppercase tracking-widest text-brand-muted hover:text-brand-ink transition-colors">
                   LOGIN
                 </Link>
               ) : (
-                <div className="flex items-center gap-4">
+                <div className="hidden sm:flex items-center gap-4">
                    <Link to="/profile" className="text-xs font-semibold uppercase tracking-widest text-brand-muted">
                     {displayName}
                   </Link>
                   <button onClick={() => auth.signOut()} className="text-[10px] uppercase tracking-tighter opacity-40 hover:opacity-100">LOGOUT</button>
                 </div>
               )}
-              <Link to="/store" className="bg-brand-primary text-white px-6 py-2.5 rounded-full text-xs font-bold tracking-wider hover:opacity-90 transition-opacity">
+              <Link to="/store" className="bg-brand-primary text-white px-4 md:px-6 py-2 md:py-2.5 rounded-full text-[10px] md:text-xs font-bold tracking-wider hover:opacity-90 transition-opacity whitespace-nowrap">
                 RESERVE
               </Link>
+              
+              {/* Mobile Menu Button */}
+              <button 
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="md:hidden p-2 text-brand-ink focus:outline-none"
+              >
+                {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Mobile Navigation Overlay */}
+        <AnimatePresence>
+          {isMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden bg-white border-b border-brand-line overflow-hidden"
+            >
+              <div className="px-4 py-6 space-y-4">
+                {navItems.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setIsMenuOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                      location.pathname === item.path ? 'bg-brand-bg text-brand-ink' : 'text-brand-primary hover:bg-gray-50'
+                    }`}
+                  >
+                    <item.icon size={18} />
+                    {item.name}
+                  </Link>
+                ))}
+                
+                <div className="pt-4 border-t border-brand-line space-y-4">
+                  {!authenticated ? (
+                    <Link 
+                      to="/login" 
+                      onClick={() => setIsMenuOpen(false)}
+                      className="block px-4 text-xs font-bold uppercase tracking-widest text-brand-muted"
+                    >
+                      LOGIN
+                    </Link>
+                  ) : (
+                    <div className="px-4 space-y-4">
+                      <div className="text-xs font-bold uppercase tracking-widest text-brand-muted">
+                        {displayName}
+                      </div>
+                      <button 
+                        onClick={() => { auth.signOut(); setIsMenuOpen(false); }}
+                        className="block text-[10px] font-bold uppercase tracking-widest text-red-400"
+                      >
+                        LOGOUT
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* Main Content */}
