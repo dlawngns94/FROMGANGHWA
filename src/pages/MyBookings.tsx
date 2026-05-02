@@ -4,7 +4,7 @@ import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Booking } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { CreditCard, CheckCircle, Clock, XCircle, ChevronRight, Wallet } from 'lucide-react';
+import { CreditCard, CheckCircle, Clock, XCircle, ChevronRight, Wallet, ShoppingBag } from 'lucide-react';
 import { format } from 'date-fns';
 
 const MyBookings: React.FC = () => {
@@ -12,7 +12,18 @@ const MyBookings: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<string | null>(null);
+  const [bankInfoBooking, setBankInfoBooking] = useState<Booking | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const BANK_ACCOUNT = "기업은행 012-345-67890";
+  const ACCOUNT_HOLDER = "프롬강화";
+
+  const copyToClipboard = (text: string) => {
+    const accountNumber = text.replace(/[^0-9-]/g, '');
+    navigator.clipboard.writeText(accountNumber).then(() => {
+      alert('계좌번호가 복사되었습니다.');
+    });
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -45,6 +56,7 @@ const MyBookings: React.FC = () => {
         paidAt: serverTimestamp()
       });
       setSelectedBooking(null);
+      setBankInfoBooking(null);
     } catch (error) {
       console.error('Error updating payment:', error);
       alert('결제 처리 중 오류가 발생했습니다.');
@@ -101,6 +113,70 @@ const MyBookings: React.FC = () => {
                 <h3 className="text-xl font-bold font-sans">결제 진행 중</h3>
                 <p className="text-sm text-brand-muted font-sans">네이버페이 결제 정보를 확인하고 있습니다.<br/>잠시만 기다려 주세요.</p>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {bankInfoBooking && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-3xl p-8 max-w-sm w-full space-y-8"
+            >
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-bold font-sans">무통장 입금 안내</h3>
+                <p className="text-xs text-brand-muted font-sans italic uppercase tracking-widest">Bank Transfer Info</p>
+              </div>
+
+              <div className="bg-brand-bg/50 p-6 rounded-2xl space-y-4 border border-brand-line">
+                <div className="space-y-1 text-center">
+                  <div className="text-[10px] text-brand-muted font-bold uppercase tracking-tighter">Amount to Pay</div>
+                  <div className="text-2xl font-bold italic tracking-tight">{bankInfoBooking.totalPrice.toLocaleString()} KRW</div>
+                </div>
+
+                <div className="h-px bg-brand-line w-full" />
+
+                <div className="space-y-3">
+                  <div className="flex flex-col items-center">
+                    <div className="text-[10px] text-brand-muted font-bold tracking-tighter mb-1 uppercase">Account Number</div>
+                    <div className="text-sm font-bold font-sans text-brand-ink">{BANK_ACCOUNT}</div>
+                    <div className="text-[10px] text-brand-muted font-bold mt-1">예금주: {ACCOUNT_HOLDER}</div>
+                  </div>
+                  
+                  <button 
+                    onClick={() => copyToClipboard(BANK_ACCOUNT)}
+                    className="w-full py-2.5 bg-white border border-brand-line rounded-xl text-[10px] font-bold font-sans uppercase tracking-[0.2em] hover:bg-brand-line transition-all flex items-center justify-center gap-2"
+                  >
+                    계좌번호 복사하기
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <button 
+                  onClick={() => handlePaymentSubmit(bankInfoBooking.id, 'bank_transfer')}
+                  className="w-full py-4 bg-brand-primary text-white rounded-xl font-bold font-sans text-xs uppercase tracking-[0.2em] shadow-lg shadow-brand-primary/20 hover:opacity-90 transition-all"
+                >
+                  입금 완료 (확인 요청)
+                </button>
+                <button 
+                  onClick={() => setBankInfoBooking(null)}
+                  className="w-full py-3 text-brand-muted text-[10px] font-bold font-sans uppercase tracking-widest hover:text-brand-ink transition-colors"
+                >
+                  닫기
+                </button>
+              </div>
+
+              <p className="text-[9px] text-center text-brand-muted leading-relaxed opacity-60">
+                입금 확인은 관리자가 수동으로 진행하며,<br/>
+                확인 완료 후 예약이 확정됩니다.
+              </p>
             </motion.div>
           </motion.div>
         )}
@@ -183,12 +259,12 @@ const MyBookings: React.FC = () => {
                         <h4 className="text-sm font-bold font-sans uppercase tracking-widest">결제 수단 선택</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <button 
-                            onClick={() => handlePaymentSubmit(booking.id, 'bank_transfer')}
+                            onClick={() => setBankInfoBooking(booking)}
                             className="bg-white border border-brand-line p-6 rounded-2xl flex flex-col items-center gap-3 hover:border-brand-primary transition-colors group"
                           >
                             <Wallet className="text-brand-muted group-hover:text-brand-primary transition-colors" size={32} />
                             <span className="text-xs font-bold font-sans">무통장 입금</span>
-                            <span className="text-[9px] text-brand-muted font-sans opacity-60">기업은행 012-345-67890 (프롬강화)</span>
+                            <span className="text-[9px] text-brand-muted font-sans opacity-60">계좌 정보 확인 후 입금</span>
                           </button>
                           <button 
                             onClick={() => handlePaymentSubmit(booking.id, 'naver_pay')}
