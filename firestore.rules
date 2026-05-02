@@ -18,7 +18,10 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow list: if isAdmin();
-      allow create: if isSignedIn() && isOwner(userId) && incoming().role == 'user';
+      allow create: if isSignedIn() && isOwner(userId) && (
+        incoming().role == 'user' || 
+        (request.auth.token.email == 'dlawngns94@gmail.com' && incoming().role == 'admin')
+      );
       allow update: if isSignedIn() && (
         (isOwner(userId) && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly(['displayName'])) ||
         isAdmin()

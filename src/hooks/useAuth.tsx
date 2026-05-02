@@ -23,33 +23,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        let userProfile: UserProfile;
+      try {
+        setUser(user);
+        if (user) {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          let userProfile: UserProfile;
 
-        if (userDoc.exists()) {
-          userProfile = userDoc.data() as UserProfile;
-          // Ensure designated email is always admin
-          if (user.email === ADMIN_EMAIL && userProfile.role !== 'admin') {
-            userProfile.role = 'admin';
-            await updateDoc(doc(db, 'users', user.uid), { role: 'admin' });
+          if (userDoc.exists()) {
+            userProfile = userDoc.data() as UserProfile;
+            // Ensure designated email is always admin
+            if (user.email === ADMIN_EMAIL && userProfile.role !== 'admin') {
+              userProfile.role = 'admin';
+              await updateDoc(doc(db, 'users', user.uid), { role: 'admin' });
+            }
+          } else {
+            // Default profile for new users
+            userProfile = {
+              uid: user.uid,
+              email: user.email || '',
+              displayName: user.displayName || '익명',
+              role: user.email === ADMIN_EMAIL ? 'admin' : 'user',
+            };
+            await setDoc(doc(db, 'users', user.uid), userProfile);
           }
+          setProfile(userProfile);
         } else {
-          // Default profile for new users
-          userProfile = {
-            uid: user.uid,
-            email: user.email || '',
-            displayName: user.displayName || '익명',
-            role: user.email === ADMIN_EMAIL ? 'admin' : 'user',
-          };
-          await setDoc(doc(db, 'users', user.uid), userProfile);
+          setProfile(null);
         }
-        setProfile(userProfile);
-      } else {
+      } catch (error) {
+        console.error('Auth state initialization error:', error);
+        // Fallback: still set user even if profile fetch fails
         setProfile(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();

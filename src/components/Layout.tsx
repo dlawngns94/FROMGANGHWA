@@ -6,7 +6,7 @@ import { auth } from '../lib/firebase';
 import { motion } from 'motion/react';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const location = useLocation();
 
   const navItems = [
@@ -19,6 +19,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   if (profile?.role === 'admin') {
     navItems.push({ name: '관리자', path: '/admin', icon: Settings });
   }
+
+  const authenticated = !!user || !!profile;
+  const displayName = profile?.displayName || user?.displayName || user?.email?.split('@')[0] || 'User';
 
   return (
     <div className="min-h-screen bg-brand-bg text-brand-ink font-serif flex flex-col">
@@ -50,16 +53,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </div>
 
             <div className="flex items-center space-x-6">
-              {!profile ? (
+              {!authenticated ? (
                 <Link to="/login" className="text-xs font-semibold uppercase tracking-widest text-brand-muted hover:text-brand-ink transition-colors">
                   LOGIN
                 </Link>
               ) : (
                 <div className="flex items-center gap-4">
                    <Link to="/profile" className="text-xs font-semibold uppercase tracking-widest text-brand-muted">
-                    {profile.displayName}
+                    {displayName}
                   </Link>
-                  <button onClick={() => auth.signOut()} className="text-[10px] uppercase tracking-tighter opacity-40 hover:opacity-100">SignOut</button>
+                  <button onClick={() => auth.signOut()} className="text-[10px] uppercase tracking-tighter opacity-40 hover:opacity-100">LOGOUT</button>
                 </div>
               )}
               <Link to="/store" className="bg-brand-primary text-white px-6 py-2.5 rounded-full text-xs font-bold tracking-wider hover:opacity-90 transition-opacity">
