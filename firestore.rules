@@ -35,10 +35,16 @@ service cloud.firestore {
       
       allow create: if isSignedIn() && 
         incoming().userId == request.auth.uid &&
-        incoming().status == 'pending' &&
+        incoming().status == 'waiting_payment' &&
         incoming().createdAt == request.time;
         
-      allow update: if isAdmin();
+      allow update: if (
+        (isSignedIn() && isOwner(existing().userId) && 
+         incoming().userId == existing().userId &&
+         incoming().status in ['paid', 'cancelled'] &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'paymentMethod', 'paidAt'])) ||
+        isAdmin()
+      );
       allow delete: if isAdmin();
     }
   }

@@ -14,6 +14,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: '프롬스토어', path: '/store', icon: ShoppingBag },
     { name: '프롬농장', path: '/farm', icon: MapPin },
     { name: '프롬스테이', path: '/stay', icon: Calendar },
+    { name: '내 예약', path: '/my-bookings', icon: ShoppingBag },
   ];
 
   if (profile?.role === 'admin') {

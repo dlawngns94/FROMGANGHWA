@@ -37,7 +37,9 @@
         "userName": { "type": "string" },
         "phone": { "type": "string" },
         "address": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled", "shipped"] },
+        "status": { "type": "string", "enum": ["waiting_payment", "paid", "confirmed", "cancelled", "shipped"] },
+        "paymentMethod": { "type": "string" },
+        "paidAt": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "category", "items", "totalPrice", "userName", "phone", "status", "createdAt"]

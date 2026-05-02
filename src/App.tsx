@@ -6,6 +6,7 @@ import Store from './pages/Store';
 import Farm from './pages/Farm';
 import Stay from './pages/Stay';
 import BookingPage from './pages/Booking';
+import MyBookings from './pages/MyBookings';
 import Admin from './pages/Admin';
 import Login from './pages/Login';
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -28,6 +29,7 @@ function App() {
             <Route path="/farm" element={<Farm />} />
             <Route path="/stay" element={<Stay />} />
             <Route path="/booking" element={<BookingPage />} />
+            <Route path="/my-bookings" element={<MyBookings />} />
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
             <Route path="*" element={<Navigate to="/" />} />

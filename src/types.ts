@@ -24,7 +24,9 @@ export interface Booking {
   userName: string;
   phone: string;
   address?: string;
-  status: 'pending' | 'confirmed' | 'cancelled' | 'shipped';
+  status: 'waiting_payment' | 'paid' | 'confirmed' | 'cancelled' | 'shipped';
+  paymentMethod?: string;
+  paidAt?: any;
   createdAt: any;
 }
 

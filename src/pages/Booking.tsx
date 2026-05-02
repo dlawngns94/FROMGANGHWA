@@ -59,7 +59,7 @@ const BookingPage: React.FC = () => {
         userName: data.userName,
         phone: data.phone,
         address: data.address,
-        status: 'pending',
+        status: 'waiting_payment',
         createdAt: serverTimestamp(),
       };
 
@@ -81,13 +81,16 @@ const BookingPage: React.FC = () => {
             <CheckCircle size={64} />
           </div>
         </div>
-        <h1 className="text-3xl font-bold">예약/주문이 완료되었습니다!</h1>
-        <p className="text-[#8E9299]">관리자가 확인 후 곧 연락드리겠습니다.</p>
+        <h1 className="text-3xl font-bold">에약 정보가 접수되었습니다!</h1>
+        <p className="text-[#8E9299] font-sans">
+          내 예약 현황에서 결제 수단을 선택해 주세요.<br/>
+          결제 확인 후 관리자가 승인을 진행합니다.
+        </p>
         <button 
-          onClick={() => navigate('/')}
-          className="w-full bg-[#5A5A40] text-white py-4 rounded-xl font-bold"
+          onClick={() => navigate('/my-bookings')}
+          className="w-full bg-[#5A5A40] text-white py-4 rounded-xl font-bold font-sans uppercase tracking-widest text-xs"
         >
-          홈으로 돌아가기
+          내 예약 확인하러 가기
         </button>
       </div>
     );
@@ -117,17 +120,6 @@ const BookingPage: React.FC = () => {
           <div className="pt-8 border-t border-brand-line flex justify-between items-baseline">
             <span className="text-[10px] uppercase tracking-widest text-brand-muted font-sans font-bold">Total Amount</span>
             <span className="text-3xl font-bold italic tracking-tighter">{(selectedProduct.price * quantity).toLocaleString()} KRW</span>
-          </div>
-          
-          {/* Naver Pay Button */}
-          <div className="pt-4">
-            <div className="bg-naver-pay text-white p-4 rounded-lg flex items-center justify-between cursor-pointer hover:opacity-90 transition-opacity">
-              <div className="flex items-center space-x-2">
-                <CreditCard size={18} />
-                <span className="font-bold text-sm">N Pay 결제하기</span>
-              </div>
-              <span className="text-[10px] opacity-80 font-bold">최대 5% 적립</span>
-            </div>
           </div>
         </div>
 

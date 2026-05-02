@@ -3,7 +3,7 @@ import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase
 import { db } from '../lib/firebase';
 import { Booking } from '../types';
 import { format } from 'date-fns';
-import { Search, Filter, Check, X, Truck, Clock } from 'lucide-react';
+import { Search, Filter, Check, X, Truck, Clock, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const Admin: React.FC = () => {
@@ -38,19 +38,23 @@ const Admin: React.FC = () => {
 
   const getStatusIcon = (status: Booking['status']) => {
     switch (status) {
-      case 'pending': return <Clock size={16} className="text-yellow-500" />;
-      case 'confirmed': return <Check size={16} className="text-blue-500" />;
-      case 'shipped': return <Truck size={16} className="text-green-500" />;
+      case 'waiting_payment': return <Clock size={16} className="text-orange-400" />;
+      case 'paid': return <CheckCircle size={16} className="text-blue-500" />;
+      case 'confirmed': return <Check size={16} className="text-green-600" />;
+      case 'shipped': return <Truck size={16} className="text-purple-500" />;
       case 'cancelled': return <X size={16} className="text-red-500" />;
+      default: return <Clock size={16} className="text-gray-400" />;
     }
   };
 
   const getStatusLabel = (status: Booking['status']) => {
     switch (status) {
-      case 'pending': return '입금대기';
-      case 'confirmed': return '예약확정';
-      case 'shipped': return '배송중';
+      case 'waiting_payment': return '결제전';
+      case 'paid': return '입금확인필요';
+      case 'confirmed': return '확정됨';
+      case 'shipped': return '배송/완료';
       case 'cancelled': return '취소됨';
+      default: return status;
     }
   };
 
@@ -98,8 +102,9 @@ const Admin: React.FC = () => {
               className="text-sm bg-transparent focus:outline-none"
             >
               <option value="all">전체 상태</option>
-              <option value="pending">입금대기</option>
-              <option value="confirmed">예약확정</option>
+              <option value="waiting_payment">결제전</option>
+              <option value="paid">입금확인필요</option>
+              <option value="confirmed">확정됨</option>
               <option value="shipped">배송중/완료</option>
               <option value="cancelled">취소됨</option>
             </select>
@@ -111,15 +116,15 @@ const Admin: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-gray-50 border-bottom border-gray-100 italic font-serif text-sm opacity-60">
-                <th className="px-6 py-4">예약번호</th>
-                <th className="px-6 py-4">구분</th>
-                <th className="px-6 py-4">예약자명</th>
-                <th className="px-6 py-4">연락처</th>
-                <th className="px-6 py-4">예약/배송일자</th>
-                <th className="px-6 py-4">상태</th>
-                <th className="px-6 py-4">액션</th>
-              </tr>
+            <tr className="bg-gray-50 border-bottom border-gray-100 italic font-serif text-sm opacity-60">
+              <th className="px-6 py-4">예약번호</th>
+              <th className="px-6 py-4">구분</th>
+              <th className="px-6 py-4">예약자명</th>
+              <th className="px-6 py-4">결제수단</th>
+              <th className="px-6 py-4">예약/배송일자</th>
+              <th className="px-6 py-4">상태</th>
+              <th className="px-6 py-4">액션</th>
+            </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               <AnimatePresence mode="popLayout">
@@ -142,8 +147,13 @@ const Admin: React.FC = () => {
                         {categoryLabels[b.category]}
                       </span>
                     </td>
-                    <td className="px-6 py-4 font-medium">{b.userName}</td>
-                    <td className="px-6 py-4 text-sm">{b.phone}</td>
+                    <td className="px-6 py-4 font-medium">
+                      <div>{b.userName}</div>
+                      <div className="text-[10px] text-gray-400 font-sans">{b.phone}</div>
+                    </td>
+                    <td className="px-6 py-4 text-xs font-sans">
+                      {b.paymentMethod === 'bank_transfer' ? '무통장' : b.paymentMethod === 'naver_pay' ? '네이버페이' : '-'}
+                    </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="font-medium">{b.date}</div>
                       {b.time && <div className="text-xs text-gray-400">{b.time}</div>}
@@ -156,10 +166,18 @@ const Admin: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
-                        {b.status === 'pending' && (
+                        {b.status === 'paid' && (
                           <button 
                             onClick={() => updateStatus(b.id, 'confirmed')}
-                            className="p-1 hover:bg-blue-50 text-blue-600 rounded transition-colors" title="확정"
+                            className="p-1 hover:bg-blue-50 text-blue-600 rounded transition-colors" title="입금확인 및 예약확정"
+                          >
+                            <Check size={18} />
+                          </button>
+                        )}
+                        {b.status === 'waiting_payment' && (
+                          <button 
+                            onClick={() => updateStatus(b.id, 'confirmed')}
+                            className="p-1 hover:bg-green-50 text-green-600 rounded transition-colors" title="바로 확정"
                           >
                             <Check size={18} />
                           </button>
