@@ -46,17 +46,21 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </div>
             
             {/* Center: Main Nav Items */}
-            <div className="hidden xl:flex items-center space-x-3 2xl:space-x-5 overflow-x-auto py-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`text-xs 2xl:text-sm font-medium transition-colors hover:text-black whitespace-nowrap ${
-                    location.pathname === item.path ? 'text-brand-ink font-bold border-b-2 border-brand-primary pb-1' : 'text-brand-primary'
-                  }`}
-                >
-                  {item.name}
-                </Link>
+            <div className="hidden xl:flex items-center space-x-3 2xl:space-x-4 overflow-x-auto py-1">
+              {navItems.map((item, index) => (
+                <React.Fragment key={item.path}>
+                  {index > 0 && (
+                    <span className="text-brand-line select-none text-xs font-light px-0.5">|</span>
+                  )}
+                  <Link
+                    to={item.path}
+                    className={`text-xs 2xl:text-sm font-medium transition-colors hover:text-black whitespace-nowrap ${
+                      location.pathname === item.path ? 'text-brand-ink font-bold border-b-2 border-brand-primary pb-1' : 'text-brand-primary'
+                    }`}
+                  >
+                    {item.name}
+                  </Link>
+                </React.Fragment>
               ))}
             </div>
 
