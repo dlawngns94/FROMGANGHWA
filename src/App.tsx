@@ -2,9 +2,14 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
+import About from './pages/About';
+import Brand from './pages/Brand';
 import Store from './pages/Store';
 import Farm from './pages/Farm';
 import Stay from './pages/Stay';
+import Magazine from './pages/Magazine';
+import Notice from './pages/Notice';
+import Contact from './pages/Contact';
 import BookingPage from './pages/Booking';
 import MyBookings from './pages/MyBookings';
 import Admin from './pages/Admin';
@@ -25,9 +30,14 @@ function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/brand" element={<Brand />} />
             <Route path="/store" element={<Store />} />
             <Route path="/farm" element={<Farm />} />
             <Route path="/stay" element={<Stay />} />
+            <Route path="/magazine" element={<Magazine />} />
+            <Route path="/notice" element={<Notice />} />
+            <Route path="/contact" element={<Contact />} />
             <Route path="/booking" element={<BookingPage />} />
             <Route path="/my-bookings" element={<MyBookings />} />
             <Route path="/login" element={<Login />} />

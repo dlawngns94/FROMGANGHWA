@@ -19,15 +19,15 @@ const Stay: React.FC = () => {
   return (
     <div className="flex flex-col bg-brand-bg min-h-screen">
       {/* Header */}
-      <header className="py-32 px-10 text-center border-b border-brand-line bg-white">
-        <div className="max-w-4xl mx-auto space-y-8">
+      <header className="py-24 px-10 text-center border-b border-brand-line bg-white">
+        <div className="max-w-4xl mx-auto space-y-6">
           <div className="text-[10px] uppercase tracking-[0.5em] text-brand-muted font-sans font-bold">Stay & Reflect</div>
-          <h1 className="text-6xl font-light tracking-tight italic leading-tight">
-            "별이 쏟아지는 강화의 밤,<br />고즈넉한 쉼표를 찍다."
+          <h1 className="text-4xl sm:text-6xl font-light tracking-tight italic leading-tight">
+            스테이
           </h1>
-          <p className="text-lg text-brand-muted leading-relaxed font-sans font-light max-w-2xl mx-auto">
-            아무것도 하지 않을 자유, 혹은 자연 속에서 온전히 나를 채우는 시간. <br />
-            포근한 침구와 창밖으로 펼쳐지는 강화의 풍경이 당신의 고단함을 씻어줍니다.
+          <p className="text-base sm:text-lg text-brand-muted leading-relaxed font-sans font-light max-w-2xl mx-auto">
+            별이 쏟아지는 강화의 밤, 고즈넉한 쉼표.<br />
+            아무것도 하지 않을 자유, 포근한 침구와 창밖으로 펼쳐지는 강화의 풍경이 당신의 고단함을 씻어줍니다.
           </p>
         </div>
       </header>
