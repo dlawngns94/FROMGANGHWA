@@ -6,7 +6,7 @@ import { auth } from '../lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { profile, user } = useAuth();
+  const { profile, user, logout } = useAuth();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -75,7 +75,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <Link to="/my-bookings" className="text-xs font-semibold uppercase tracking-widest text-brand-muted hover:text-brand-ink transition-colors whitespace-nowrap">
                     {displayName}님
                   </Link>
-                  <button onClick={() => auth.signOut()} className="text-[10px] uppercase tracking-tighter opacity-50 hover:opacity-100 whitespace-nowrap">LOGOUT</button>
+                  <button onClick={() => logout()} className="text-[10px] uppercase tracking-tighter opacity-50 hover:opacity-100 whitespace-nowrap">LOGOUT</button>
                 </div>
               )}
               <Link to="/store" className="bg-brand-primary text-white px-4 sm:px-6 py-2 sm:py-2.5 rounded-full text-[10px] sm:text-xs font-bold tracking-wider hover:opacity-90 transition-opacity whitespace-nowrap">
