@@ -15,6 +15,8 @@ import MyBookings from './pages/MyBookings';
 import Admin from './pages/Admin';
 import Login from './pages/Login';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { CartProvider } from './hooks/useCart';
+import { CartDrawer } from './components/CartDrawer';
 
 const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile, loading } = useAuth();
@@ -26,26 +28,29 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/brand" element={<Brand />} />
-            <Route path="/store" element={<Store />} />
-            <Route path="/farm" element={<Farm />} />
-            <Route path="/stay" element={<Stay />} />
-            <Route path="/magazine" element={<Magazine />} />
-            <Route path="/notice" element={<Notice />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/booking" element={<BookingPage />} />
-            <Route path="/my-bookings" element={<MyBookings />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-        </Layout>
-      </Router>
+      <CartProvider>
+        <Router>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/brand" element={<Brand />} />
+              <Route path="/store" element={<Store />} />
+              <Route path="/farm" element={<Farm />} />
+              <Route path="/stay" element={<Stay />} />
+              <Route path="/magazine" element={<Magazine />} />
+              <Route path="/notice" element={<Notice />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/booking" element={<BookingPage />} />
+              <Route path="/my-bookings" element={<MyBookings />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </Layout>
+          <CartDrawer />
+        </Router>
+      </CartProvider>
     </AuthProvider>
   );
 }

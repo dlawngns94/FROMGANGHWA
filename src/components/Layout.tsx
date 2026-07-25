@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LogIn, User, MapPin, ShoppingBag, Home, Calendar, Settings, Menu, X, Sparkles, BookOpen, BookmarkCheck, Compass, Bell, MessageSquare } from 'lucide-react';
+import { LogIn, User, MapPin, ShoppingBag, Home, Calendar, Settings, Menu, X, Sparkles, BookOpen, BookmarkCheck, Compass, Bell, MessageSquare, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useCart } from '../hooks/useCart';
 import { auth } from '../lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile, user, logout } = useAuth();
+  const { totalCount, openCart } = useCart();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -78,6 +80,20 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <button onClick={() => logout()} className="text-[10px] uppercase tracking-tighter opacity-50 hover:opacity-100 whitespace-nowrap">LOGOUT</button>
                 </div>
               )}
+              {/* Cart Button */}
+              <button
+                onClick={openCart}
+                className="relative p-2 text-brand-ink hover:text-brand-primary transition-colors flex items-center justify-center font-sans"
+                aria-label="장바구니 열기"
+              >
+                <ShoppingCart size={22} />
+                {totalCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-xs animate-bounce">
+                    {totalCount > 99 ? '99+' : totalCount}
+                  </span>
+                )}
+              </button>
+
               <Link to="/store" className="bg-brand-primary text-white px-4 sm:px-6 py-2 sm:py-2.5 rounded-full text-[10px] sm:text-xs font-bold tracking-wider hover:opacity-90 transition-opacity whitespace-nowrap">
                 RESERVE
               </Link>

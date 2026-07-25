@@ -1,12 +1,23 @@
 import React from 'react';
 import { FARM_ITEMS } from '../constants';
 import { useAuth } from '../hooks/useAuth';
+import { useCart } from '../hooks/useCart';
 import { useNavigate } from 'react-router-dom';
-import { Calendar } from 'lucide-react';
+import { Calendar, ShoppingCart, Check } from 'lucide-react';
+import { Product } from '../types';
 
 const Farm: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { addToCart } = useCart();
+  const [addedId, setAddedId] = React.useState<string | null>(null);
+
+  const handleAddToCart = (product: Product, e: React.MouseEvent) => {
+    e.stopPropagation();
+    addToCart(product, 1);
+    setAddedId(product.id);
+    setTimeout(() => setAddedId(null), 1500);
+  };
 
   const handleBooking = (productId: string) => {
     if (!user) {
@@ -57,18 +68,29 @@ const Farm: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="pt-4 border-t border-brand-line flex items-center justify-between gap-4">
+                <div className="pt-4 border-t border-brand-line flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <span className="text-[10px] text-brand-muted font-sans block">체험비</span>
                     <span className="text-xl font-bold italic text-brand-ink">{item.price.toLocaleString()} KRW</span>
                   </div>
-                  <button 
-                    onClick={() => handleBooking(item.id)}
-                    className="flex items-center space-x-2 bg-brand-primary text-white px-6 py-2.5 rounded-full text-xs font-bold font-sans tracking-widest hover:opacity-90 transition-all uppercase"
-                  >
-                    <Calendar size={14} />
-                    <span>예약하기</span>
-                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={(e) => handleAddToCart(item, e)}
+                      className="p-2.5 bg-gray-100 hover:bg-gray-200 text-brand-ink rounded-full transition-all"
+                      title="장바구니 담기"
+                    >
+                      {addedId === item.id ? <Check size={16} className="text-green-600" /> : <ShoppingCart size={16} />}
+                    </button>
+
+                    <button 
+                      onClick={() => handleBooking(item.id)}
+                      className="flex items-center space-x-1.5 bg-brand-primary text-white px-5 py-2.5 rounded-full text-xs font-bold font-sans tracking-widest hover:opacity-90 transition-all uppercase"
+                    >
+                      <Calendar size={14} />
+                      <span>예약하기</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,12 +1,23 @@
 import React from 'react';
 import { STORE_ITEMS } from '../constants';
 import { useAuth } from '../hooks/useAuth';
+import { useCart } from '../hooks/useCart';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, ShoppingBag, Check } from 'lucide-react';
+import { Product } from '../types';
 
 const Store: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { addToCart } = useCart();
+  const [addedId, setAddedId] = React.useState<string | null>(null);
+
+  const handleAddToCart = (product: Product, e: React.MouseEvent) => {
+    e.stopPropagation();
+    addToCart(product, 1);
+    setAddedId(product.id);
+    setTimeout(() => setAddedId(null), 1500);
+  };
 
   const handleOrder = (productId: string) => {
     if (!user) {
@@ -53,15 +64,36 @@ const Store: React.FC = () => {
                 </p>
               </div>
               
-              <div className="pt-6 sm:pt-8 mt-6 border-t border-brand-line flex items-center justify-between gap-3">
+              <div className="pt-6 sm:pt-8 mt-6 border-t border-brand-line flex flex-wrap items-center justify-between gap-3">
                 <div className="text-xl sm:text-2xl font-bold tracking-tight italic">{item.price.toLocaleString()} KRW</div>
-                <button 
-                  onClick={() => handleOrder(item.id)}
-                  className="flex items-center justify-center space-x-2 bg-brand-primary text-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-full text-xs font-bold font-sans tracking-widest hover:opacity-90 transition-all uppercase"
-                >
-                  <ShoppingCart size={14} />
-                  <span>구매하기</span>
-                </button>
+                
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={(e) => handleAddToCart(item, e)}
+                    className="flex items-center justify-center space-x-1.5 bg-gray-100 hover:bg-gray-200 text-brand-ink px-4 py-2.5 rounded-full text-xs font-bold font-sans transition-all"
+                    title="장바구니 담기"
+                  >
+                    {addedId === item.id ? (
+                      <>
+                        <Check size={14} className="text-green-600" />
+                        <span className="text-green-600">담김</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart size={14} />
+                        <span>장바구니</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button 
+                    onClick={() => handleOrder(item.id)}
+                    className="flex items-center justify-center space-x-1.5 bg-brand-primary text-white px-5 py-2.5 rounded-full text-xs font-bold font-sans tracking-wider hover:opacity-90 transition-all uppercase"
+                  >
+                    <ShoppingBag size={14} />
+                    <span>바로구매</span>
+                  </button>
+                </div>
               </div>
             </div>
           ))}
