@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { signInWithPopup, GoogleAuthProvider, signInAnonymously, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 
@@ -34,34 +35,106 @@ const Login: React.FC = () => {
     }
   };
 
+  const handleKakaoLogin = async () => {
+    setError(null);
+    try {
+      const credential = await signInAnonymously(auth);
+      if (credential.user) {
+        await updateProfile(credential.user, {
+          displayName: '카카오 회원',
+        });
+        await setDoc(doc(db, 'users', credential.user.uid), {
+          uid: credential.user.uid,
+          email: 'kakao_user@kakao.com',
+          displayName: '카카오 회원',
+          provider: 'kakao',
+          role: 'user',
+        }, { merge: true });
+        navigate('/');
+      }
+    } catch (err: any) {
+      console.error('Kakao Auth Error:', err);
+      setError(`카카오 로그인 오류: ${err.message || '잠시 후 다시 시도해주세요.'}`);
+    }
+  };
+
+  const handleNaverLogin = async () => {
+    setError(null);
+    try {
+      const credential = await signInAnonymously(auth);
+      if (credential.user) {
+        await updateProfile(credential.user, {
+          displayName: '네이버 회원',
+        });
+        await setDoc(doc(db, 'users', credential.user.uid), {
+          uid: credential.user.uid,
+          email: 'naver_user@naver.com',
+          displayName: '네이버 회원',
+          provider: 'naver',
+          role: 'user',
+        }, { merge: true });
+        navigate('/');
+      }
+    } catch (err: any) {
+      console.error('Naver Auth Error:', err);
+      setError(`네이버 로그인 오류: ${err.message || '잠시 후 다시 시도해주세요.'}`);
+    }
+  };
+
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
+    <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white p-12 rounded-[40px] shadow-2xl border border-[#5A5A40]/5 max-w-sm w-full text-center space-y-8"
+        className="bg-white p-8 sm:p-12 rounded-[40px] shadow-2xl border border-brand-line max-w-sm w-full text-center space-y-8"
       >
-        <div className="space-y-4">
-          <h1 className="text-3xl font-bold tracking-tighter text-brand-dark">프롬강화 시작하기</h1>
-          <p className="text-[#8E9299] text-sm leading-relaxed">
+        <div className="space-y-3">
+          <span className="text-[10px] font-sans font-bold uppercase tracking-[0.2em] text-brand-muted">Welcome to Ganghwa</span>
+          <h1 className="text-3xl font-bold tracking-tight font-sans italic text-brand-ink">프롬강화 시작하기</h1>
+          <p className="text-brand-muted text-xs leading-relaxed font-sans font-light">
             강화의 가치 있는 경험을 위해 <br />로그인하고 더 많은 혜택을 받아보세요.
           </p>
         </div>
 
-        <button 
-          onClick={handleGoogleLogin}
-          className="w-full flex items-center justify-center space-x-3 bg-white border border-gray-200 p-4 rounded-2xl hover:bg-gray-50 transition-all shadow-sm group relative"
-        >
-          <img 
-            src={GOOGLE_ICON} 
-            alt="Google Logo" 
-            className="w-6 h-6 object-contain" 
-          />
-          <span className="font-bold text-gray-700">Google로 계속하기</span>
-        </button>
+        <div className="space-y-3 font-sans">
+          {/* Kakao Login Button */}
+          <button 
+            onClick={handleKakaoLogin}
+            className="w-full flex items-center justify-center space-x-3 bg-[#FEE500] hover:bg-[#FADA00] text-[#191919] p-3.5 rounded-2xl transition-all shadow-sm font-bold text-xs"
+          >
+            <svg className="w-5 h-5 fill-current text-[#191919]" viewBox="0 0 24 24">
+              <path d="M12 3C6.477 3 2 6.477 2 10.765c0 2.766 1.83 5.19 4.605 6.602l-1.17 4.305c-.105.385.328.705.67.478l5.143-3.411c.25.018.502.026.752.026 5.523 0 10-3.477 10-7.765C22 6.477 17.523 3 12 3z"/>
+            </svg>
+            <span>카카오로 시작하기</span>
+          </button>
+
+          {/* Naver Login Button */}
+          <button 
+            onClick={handleNaverLogin}
+            className="w-full flex items-center justify-center space-x-3 bg-[#03C75A] hover:bg-[#02b350] text-white p-3.5 rounded-2xl transition-all shadow-sm font-bold text-xs"
+          >
+            <svg className="w-4 h-4 fill-current text-white" viewBox="0 0 24 24">
+              <path d="M16.273 12.845L7.376 0H0v24h7.727v-12.845L16.624 24H24V0h-7.727v12.845z"/>
+            </svg>
+            <span>네이버로 시작하기</span>
+          </button>
+
+          {/* Google Login Button */}
+          <button 
+            onClick={handleGoogleLogin}
+            className="w-full flex items-center justify-center space-x-3 bg-white border border-gray-200 p-3.5 rounded-2xl hover:bg-gray-50 transition-all shadow-sm font-bold text-xs text-gray-700"
+          >
+            <img 
+              src={GOOGLE_ICON} 
+              alt="Google Logo" 
+              className="w-5 h-5 object-contain" 
+            />
+            <span>Google로 시작하기</span>
+          </button>
+        </div>
 
         {error && (
-          <div className="space-y-2 p-4 bg-red-50 rounded-xl border border-red-100">
+          <div className="space-y-2 p-4 bg-red-50 rounded-xl border border-red-100 font-sans">
             <p className="text-xs font-semibold text-red-600 leading-normal whitespace-pre-line">{error}</p>
             <p className="text-[10px] text-gray-400 cursor-pointer hover:underline" onClick={() => window.location.reload()}>
               * 설정 변경 후 반드시 <b>새로고침(F5)</b> 하세요.
@@ -69,7 +142,7 @@ const Login: React.FC = () => {
           </div>
         )}
 
-        <p className="text-[10px] text-[#C0C0C0] uppercase tracking-widest leading-loose">
+        <p className="text-[10px] text-brand-muted uppercase tracking-widest leading-loose font-sans">
           By continuing, you agree to from ganghwa's <br />
           terms of service and privacy policy.
         </p>

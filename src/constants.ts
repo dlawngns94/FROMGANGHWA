@@ -1,4 +1,8 @@
 import { Product } from './types';
+import sweetPotatoImg from './assets/images/ganghwa_sweet_potato_1784939123759.jpg';
+import riceImg from './assets/images/ganghwa_rice_1784939136856.jpg';
+import sochangImg from './assets/images/ganghwa_sochang_1784939147927.jpg';
+import indigoImg from './assets/images/ganghwa_indigo_1784939172752.jpg';
 
 export const STORE_ITEMS: Product[] = [
   {
@@ -8,7 +12,7 @@ export const STORE_ITEMS: Product[] = [
     price: 25000,
     unit: '5kg',
     description: '서해 해풍과 풍부한 햇살을 받아 당도가 높고 촉촉한 강화 특산 속노랑 고구마입니다.',
-    imageUrl: 'https://images.unsplash.com/photo-1590165482129-1b8b27698780?auto=format&fit=crop&q=80&w=800&h=1000',
+    imageUrl: sweetPotatoImg,
   },
   {
     id: 'store-2',
@@ -17,7 +21,7 @@ export const STORE_ITEMS: Product[] = [
     price: 38000,
     unit: '10kg',
     description: '비옥한 간척지와 미네랄 풍부한 토양에서 자라 찰기가 넘치고 고소한 강화 대표 섬쌀입니다.',
-    imageUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&q=80&w=800&h=1000',
+    imageUrl: riceImg,
   },
 ];
 
@@ -29,7 +33,7 @@ export const FARM_ITEMS: Product[] = [
     price: 25000,
     unit: '1인',
     description: '강화의 오랜 역사를 간직한 소창 직물과 나만의 소창 손수건 만들기 체험.',
-    imageUrl: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=800&h=1000',
+    imageUrl: sochangImg,
   },
   {
     id: 'farm-2',
@@ -38,7 +42,7 @@ export const FARM_ITEMS: Product[] = [
     price: 30000,
     unit: '1인',
     description: '자연에서 얻은 깊은 푸른빛으로 스카프와 스카프 천을 물들이는 전통 천연 쪽염색 클래스.',
-    imageUrl: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&q=80&w=800&h=1000',
+    imageUrl: indigoImg,
   },
   {
     id: 'farm-3',

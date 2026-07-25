@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingBag, Sparkles } from 'lucide-react';
+import mugwortImg from '../assets/images/ganghwa_mugwort_1784939160625.jpg';
+import sochangImg from '../assets/images/ganghwa_sochang_1784939147927.jpg';
 
 export interface BrandProduct {
   id: string;
@@ -55,7 +57,7 @@ export const BRAND_PRODUCTS: BrandProduct[] = [
     category: '기타',
     price: 28000,
     description: '강화 특산 사자발쑥과 제주 유기농 귤피를 최적의 비율로 로스팅하여 은은한 향과 따뜻한 온기를 선사합니다.',
-    imageUrl: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&q=80&w=800&h=1000',
+    imageUrl: mugwortImg,
     tag: 'SIGNATURE'
   },
   {

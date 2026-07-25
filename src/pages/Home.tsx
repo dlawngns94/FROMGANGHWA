@@ -3,6 +3,49 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowRight, ShoppingBag, MapPin, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import sweetPotatoImg from '../assets/images/ganghwa_sweet_potato_1784939123759.jpg';
+import riceImg from '../assets/images/ganghwa_rice_1784939136856.jpg';
+import mugwortImg from '../assets/images/ganghwa_mugwort_1784939160625.jpg';
+import sochangImg from '../assets/images/ganghwa_sochang_1784939147927.jpg';
+
+const BEST_ITEMS = [
+  {
+    id: 'b-1',
+    name: '강화속노란고구마 5kg',
+    category: '제철 농산물',
+    price: 25000,
+    img: sweetPotatoImg,
+    tag: 'BEST',
+    path: '/store'
+  },
+  {
+    id: 'b-2',
+    name: '강화섬쌀 10kg',
+    category: '제철 농산물',
+    price: 38000,
+    img: riceImg,
+    tag: 'POPULAR',
+    path: '/store'
+  },
+  {
+    id: 'b-3',
+    name: '사자발쑥 블렌딩 티 세트',
+    category: '자체브랜드',
+    price: 28000,
+    img: mugwortImg,
+    tag: 'SIGNATURE',
+    path: '/brand'
+  },
+  {
+    id: 'b-4',
+    name: '강화 전통 소창 손수건 세트',
+    category: '이리저리 체험관',
+    price: 25000,
+    img: sochangImg,
+    tag: 'CRAFT',
+    path: '/farm'
+  }
+];
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -55,23 +98,27 @@ const Home: React.FC = () => {
             </Link>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-4 border-l border-t border-brand-line">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="group border-r border-b border-brand-line p-6 hover:bg-brand-bg transition-colors">
-                <div className="relative aspect-[3/4] overflow-hidden mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 border-l border-t border-brand-line">
+            {BEST_ITEMS.map((item) => (
+              <div 
+                key={item.id} 
+                onClick={() => navigate(item.path)}
+                className="group border-r border-b border-brand-line p-6 hover:bg-brand-bg cursor-pointer transition-colors"
+              >
+                <div className="relative aspect-[4/3] overflow-hidden mb-6 bg-gray-100 rounded-xl">
                   <img 
-                    src={`https://picsum.photos/seed/best-item-${i}/600/800`} 
-                    alt="Best Selection" 
+                    src={item.img} 
+                    alt={item.name} 
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="absolute top-0 right-0 bg-brand-primary text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1">New</div>
+                  <div className="absolute top-2 right-2 bg-brand-primary text-white text-[9px] font-bold font-sans uppercase tracking-widest px-2.5 py-1 rounded-full">{item.tag}</div>
                 </div>
                 <div className="space-y-2">
-                  <div className="text-[10px] uppercase tracking-widest text-brand-muted font-sans italic">Premium Selection</div>
-                  <h4 className="font-medium text-lg leading-tight">강화의 진심을 담은 {i}호</h4>
+                  <div className="text-[10px] uppercase tracking-widest text-brand-muted font-sans font-bold">{item.category}</div>
+                  <h4 className="font-bold text-lg leading-tight font-sans text-brand-ink">{item.name}</h4>
                   <div className="flex justify-between items-center pt-2">
-                    <span className="font-bold text-sm tracking-tight">15,000 KRW</span>
+                    <span className="font-bold text-sm tracking-tight italic">{item.price.toLocaleString()} KRW</span>
                     <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
