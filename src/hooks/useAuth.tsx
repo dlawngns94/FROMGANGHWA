@@ -10,7 +10,7 @@ interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
-  loginWithSocial: (provider: 'kakao' | 'naver', name: string) => Promise<void>;
+  loginWithSocial: (provider: 'kakao' | 'naver', name: string, email?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -90,11 +90,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
-  const loginWithSocial = async (provider: 'kakao' | 'naver', name: string) => {
+  const loginWithSocial = async (provider: 'kakao' | 'naver', name: string, email?: string) => {
+    const defaultEmail = `${provider}_user@${provider === 'kakao' ? 'kakao.com' : 'naver.com'}`;
     const customUser: UserProfile = {
       uid: `${provider}_${Date.now()}`,
-      email: `${provider}_user@fromganghwa.kr`,
-      displayName: `${name}`,
+      email: email && email.includes('@') ? email : defaultEmail,
+      displayName: name || (provider === 'kakao' ? '카카오 회원' : '네이버 회원'),
       role: 'user',
     };
     localStorage.setItem('fg_social_user', JSON.stringify(customUser));
