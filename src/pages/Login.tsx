@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { signInWithPopup, GoogleAuthProvider, signInAnonymously, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { auth } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '../hooks/useAuth';
@@ -40,22 +39,7 @@ const Login: React.FC = () => {
   const handleKakaoLogin = async () => {
     setError(null);
     try {
-      try {
-        const credential = await signInAnonymously(auth);
-        if (credential.user) {
-          await updateProfile(credential.user, { displayName: '카카오 회원' });
-          await setDoc(doc(db, 'users', credential.user.uid), {
-            uid: credential.user.uid,
-            email: 'kakao_user@kakao.com',
-            displayName: '카카오 회원',
-            provider: 'kakao',
-            role: 'user',
-          }, { merge: true });
-        }
-      } catch (e) {
-        console.warn('Firebase Anonymous auth disabled, using local social auth session fallback', e);
-        await loginWithSocial('kakao', '카카오 회원');
-      }
+      await loginWithSocial('kakao', '카카오 회원');
       navigate('/');
     } catch (err: any) {
       console.error('Kakao Auth Error:', err);
@@ -66,22 +50,7 @@ const Login: React.FC = () => {
   const handleNaverLogin = async () => {
     setError(null);
     try {
-      try {
-        const credential = await signInAnonymously(auth);
-        if (credential.user) {
-          await updateProfile(credential.user, { displayName: '네이버 회원' });
-          await setDoc(doc(db, 'users', credential.user.uid), {
-            uid: credential.user.uid,
-            email: 'naver_user@naver.com',
-            displayName: '네이버 회원',
-            provider: 'naver',
-            role: 'user',
-          }, { merge: true });
-        }
-      } catch (e) {
-        console.warn('Firebase Anonymous auth disabled, using local social auth session fallback', e);
-        await loginWithSocial('naver', '네이버 회원');
-      }
+      await loginWithSocial('naver', '네이버 회원');
       navigate('/');
     } catch (err: any) {
       console.error('Naver Auth Error:', err);
