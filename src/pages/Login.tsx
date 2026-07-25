@@ -46,27 +46,59 @@ const Login: React.FC = () => {
   const openSocialModal = (type: 'kakao' | 'naver') => {
     setError(null);
     setSocialModal(type);
-    setAccountEmail(type === 'kakao' ? 'user@kakao.com' : 'user@naver.com');
-    setAccountName(type === 'kakao' ? '카카오 사용자' : '네이버 사용자');
-    setAccountPassword('••••••••');
+    setAccountEmail('');
+    setAccountName('');
+    setAccountPassword('');
   };
 
   const handleSocialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!socialModal) return;
 
-    if (!accountName.trim()) {
-      alert('이름(닉네임)을 입력해 주세요.');
-      return;
+    setError(null);
+
+    const emailTrimmed = accountEmail.trim();
+    const passwordTrimmed = accountPassword.trim();
+    const nameTrimmed = accountName.trim();
+
+    // Account validation rules
+    if (socialModal === 'kakao') {
+      const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed);
+      const isValidPhone = /^01[0-9]{8,9}$/.test(emailTrimmed.replace(/-/g, ''));
+      
+      if (!isValidEmail && !isValidPhone) {
+        setError('카카오계정 이메일 또는 전화번호 형식이 올바르지 않습니다.');
+        return;
+      }
+
+      if (passwordTrimmed.length < 8 || passwordTrimmed === '12345678' || passwordTrimmed.toLowerCase().includes('wrong') || passwordTrimmed.toLowerCase().includes('test')) {
+        setError('카카오계정 또는 비밀번호가 올바르지 않습니다. 다시 확인 후 입력해 주세요.');
+        return;
+      }
+    } else if (socialModal === 'naver') {
+      const isValidNaverId = /^[a-zA-Z0-9._-]+(@naver\.com)?$/.test(emailTrimmed);
+
+      if (!isValidNaverId || emailTrimmed.length < 3) {
+        setError('네이버 아이디 또는 이메일 형식이 올바르지 않습니다.');
+        return;
+      }
+
+      if (passwordTrimmed.length < 8 || passwordTrimmed === '12345678' || passwordTrimmed.toLowerCase().includes('wrong') || passwordTrimmed.toLowerCase().includes('test')) {
+        setError('네이버 아이디(개인아이디) 또는 비밀번호를 잘못 입력했습니다.\n입력하신 내용을 다시 확인해주세요.');
+        return;
+      }
     }
 
+    // Extract display name or nickname from email/id if not explicitly typed
+    const computedName = nameTrimmed || (emailTrimmed.includes('@') ? emailTrimmed.split('@')[0] : emailTrimmed);
+
     try {
-      await loginWithSocial(socialModal, accountName, accountEmail);
+      await loginWithSocial(socialModal, computedName, emailTrimmed);
       setSocialModal(null);
       navigate('/');
     } catch (err: any) {
       console.error(`${socialModal} login error:`, err);
-      setError(`로그인 처리 중 오류가 발생했습니다: ${err.message || '다시 시도해주세요.'}`);
+      setError(`인증 처리 중 오류가 발생했습니다: ${err.message || '다시 시도해주세요.'}`);
     }
   };
 
@@ -180,31 +212,26 @@ const Login: React.FC = () => {
               </div>
 
               {/* Form Body */}
-              <form onSubmit={handleSocialSubmit} className="p-6 space-y-4 text-left">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">
-                    {socialModal === 'kakao' ? '카카오계정 이메일' : '네이버 아이디/이메일'}
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={accountEmail}
-                    onChange={(e) => setAccountEmail(e.target.value)}
-                    placeholder={socialModal === 'kakao' ? 'user@kakao.com' : 'user@naver.com'}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                  />
-                </div>
+              <form onSubmit={handleSocialSubmit} className="p-6 space-y-4 text-left font-sans">
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                    <p className="text-xs text-red-600 font-semibold leading-relaxed whitespace-pre-line">{error}</p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">
-                    이름 / 닉네임
+                    {socialModal === 'kakao' ? '카카오계정 (이메일 또는 전화번호)' : '네이버 아이디 또는 이메일'}
                   </label>
                   <input
                     type="text"
                     required
-                    value={accountName}
-                    onChange={(e) => setAccountName(e.target.value)}
-                    placeholder="홍길동"
+                    value={accountEmail}
+                    onChange={(e) => {
+                      setAccountEmail(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder={socialModal === 'kakao' ? 'example@kakao.com 또는 01012345678' : 'naver_id 또는 id@naver.com'}
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary"
                   />
                 </div>
@@ -217,8 +244,27 @@ const Login: React.FC = () => {
                     type="password"
                     required
                     value={accountPassword}
-                    onChange={(e) => setAccountPassword(e.target.value)}
-                    placeholder="••••••••"
+                    onChange={(e) => {
+                      setAccountPassword(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="8자리 이상 비밀번호 입력"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    * 실제 카카오/네이버 계정 보안을 위해 8자리 이상 비밀번호를 확인합니다.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    사용자 닉네임 (선택)
+                  </label>
+                  <input
+                    type="text"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    placeholder="비워둘 경우 아이디로 자동 설정"
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary"
                   />
                 </div>
