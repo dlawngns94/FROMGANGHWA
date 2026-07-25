@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
 import { auth } from '../lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
+import { Logo } from './Logo';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile, user, logout } = useAuth();
@@ -38,13 +39,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <div className="w-full max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-10">
           <div className="flex justify-between h-20 items-center gap-4">
             {/* Left: Brand Logo */}
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="w-8 h-8 bg-brand-primary rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-[10px]">FG</span>
-              </div>
-              <Link to="/" className="text-xl font-medium tracking-tight text-brand-ink whitespace-nowrap">
-                프롬강화
-              </Link>
+            <div className="flex items-center shrink-0">
+              <Logo size="md" variant="horizontal" />
             </div>
             
             {/* Center: Main Nav Items */}
