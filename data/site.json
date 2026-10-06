@@ -6,12 +6,11 @@
 
   "company": {
     "corpName": "프롬강화",
-    "ceo": "(입력 필요)",
-    "businessNumber": "(입력 필요)",
+    "ceo": "조영인",
+    "businessNumber": "645-08-01832",
     "mailOrderNumber": "(입력 필요)",
-    "address": "인천광역시 강화군 (입력 필요)",
-    "email": "(입력 필요)",
-    "privacyOfficer": "(입력 필요)"
+    "address": "인천광역시 강화군",
+    "email": "hi-imagine@naver.com"
   },
   "cs": {
     "tel": "000-0000-0000",

@@ -67,7 +67,7 @@
           <div>
             <div class="f-links"><span>회사소개</span><span>이용약관</span><b>개인정보처리방침</b><span>이용안내</span></div>
             <p>법인명(상호): ${esc(c.corpName)} · 대표자: ${esc(c.ceo)} · 사업자등록번호: ${esc(c.businessNumber)}<br>
-            통신판매업신고: ${esc(c.mailOrderNumber)} · 개인정보보호책임자: ${esc(c.privacyOfficer)}<br>
+            통신판매업신고: ${esc(c.mailOrderNumber)}<br>
             주소: ${esc(c.address)} · 이메일: ${esc(c.email)}<br>
             결제대행: 네이버페이 · 고객님의 결제 정보는 프롬강화에 저장되지 않습니다.</p>
           </div>
