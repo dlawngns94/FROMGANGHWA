@@ -1,0 +1,42 @@
+{
+  "name": "프롬강화",
+  "nameEn": "FROM GANGHWA",
+  "tagline": "지역의 매력을 소개합니다",
+  "topbar": "지금 가입하면 첫 주문 10% 할인 · 40,000원 이상 무료배송",
+
+  "company": {
+    "corpName": "프롬강화",
+    "ceo": "(입력 필요)",
+    "businessNumber": "(입력 필요)",
+    "mailOrderNumber": "(입력 필요)",
+    "address": "인천광역시 강화군 (입력 필요)",
+    "email": "(입력 필요)",
+    "privacyOfficer": "(입력 필요)"
+  },
+  "cs": {
+    "tel": "000-0000-0000",
+    "hours": "평일 09:00 – 18:00 (점심 12:00 – 13:00) · 주말·공휴일 휴무"
+  },
+
+  "shipping": {
+    "freeOver": 40000,
+    "fee": 3000,
+    "cutoff": "오후 2시 전 주문 시 당일 출고"
+  },
+
+  "categories": [
+    { "id": "all", "name": "전체" },
+    { "id": "farm", "name": "제철 농산물" },
+    { "id": "sea", "name": "수산·젓갈" },
+    { "id": "side", "name": "반찬·김치" },
+    { "id": "own", "name": "자체브랜드" },
+    { "id": "craft", "name": "이리저리 체험관" }
+  ],
+
+  "naverpay": {
+    "mode": "development",
+    "clientId": "",
+    "chainId": "",
+    "approveEndpoint": ""
+  }
+}

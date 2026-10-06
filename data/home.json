@@ -1,0 +1,17 @@
+{
+  "slides": [
+    { "image": "assets/images/potato.jpg", "eyebrow": "제철 농산물", "title": "해풍 맞은 속노랑,\n지금이 가장 달 때", "text": "강화속노란고구마 5kg 14% 할인", "link": "product.html?id=p01" },
+    { "image": "assets/images/rice.jpg", "eyebrow": "2026 햅쌀", "title": "강화섬쌀\n첫 수확이 도착했어요", "text": "도정 후 3일 안에 출고합니다", "link": "product.html?id=p02" },
+    { "image": "assets/images/indigo.jpg", "eyebrow": "이리저리 체험관", "title": "강화의 쪽빛,\n직접 물들여 보세요", "text": "주말 쪽 염색 클래스 예약 오픈", "link": "shop.html?cat=craft" }
+  ],
+  "sections": [
+    { "title": "이 상품 어때요?", "sub": "강화 사람들이 가장 많이 고른 상품", "pick": "best" },
+    { "title": "놓치면 후회할 제철 가격", "sub": "수확 시기에만 드리는 산지 가격", "pick": "sale" },
+    { "strip": [
+      { "title": "산지직송", "text": "오후 2시 전 주문 시 당일 출고" },
+      { "title": "40,000원 이상 무료배송", "text": "미만 시 배송비 3,000원" },
+      { "title": "네이버페이 간편결제", "text": "포인트 적립 · 카드 혜택 그대로" }
+    ] },
+    { "title": "프롬강화 ONLY · 이리저리 체험관", "sub": "강화의 손맛과 손재주를 담은 자체 브랜드", "pick": ["p03", "p04", "p12", "p09"] }
+  ]
+}
