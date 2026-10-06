@@ -62,7 +62,7 @@
     try {
       await loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js");
       // 네이버 로그인 콜백의 ?code= 는 Supabase 것이 아니므로 자동 처리하지 않음
-      SB = window.supabase.createClient(cfg.url, cfg.anonKey, { auth: { flowType: "pkce", detectSessionInUrl: PAGE !== "naver" } });
+      SB = window.supabase.createClient(cfg.url, cfg.anonKey, { auth: { flowType: "pkce", detectSessionInUrl: PAGE !== "naver" && PAGE !== "kakao" } });
       const { data } = await SB.auth.getSession();
       USER = data.session ? data.session.user : null;
       if (USER) {
@@ -568,7 +568,7 @@
     if (isMember()) { store.del("fg_next", sessionStorage); location.replace(next); return; }
 
     const L = SITE.login || {};
-    const kakao = !!(SB && L.kakao), naver = !!(SB && API() && L.naverClientId);
+    const kakao = !!(SB && API() && L.kakao && L.kakaoRestKey), naver = !!(SB && API() && L.naverClientId);
     const perk = Number(SITE.member && SITE.member.firstOrderDiscount) || 0;
     view.innerHTML = `<div class="wrap"><div class="auth">
       <div class="page-title"><h2>로그인 · 회원가입</h2><p>카카오·네이버 계정으로 바로 가입하고 로그인해요</p></div>
@@ -583,21 +583,20 @@
     </div></div>`;
     if (err) toast(`로그인하지 못했어요: ${err}`);
 
-    view.onclick = async e => {
+    view.onclick = e => {
       const b = e.target.closest("[data-login]"); if (!b) return;
       store.set("fg_next", next, sessionStorage);
-      if (b.dataset.login === "kakao") {
-        const { error } = await SB.auth.signInWithOAuth({ provider: "kakao", options: { redirectTo: BASE + "login.html" } });
-        if (error) toast(`카카오 로그인을 시작하지 못했어요: ${error.message}`);
-      } else {
-        const state = "nv" + Array.from(crypto.getRandomValues(new Uint8Array(16)), x => x.toString(16).padStart(2, "0")).join("");
-        store.set("fg_naver_state", state, sessionStorage);
-        location.href = "https://nid.naver.com/oauth2.0/authorize?" + new URLSearchParams({
-          response_type: "code", client_id: L.naverClientId, redirect_uri: BASE + "naver-callback.html", state
-        });
-      }
+      const state = Array.from(crypto.getRandomValues(new Uint8Array(16)), x => x.toString(16).padStart(2, "0")).join("");
+      store.set("fg_oauth_state", state, sessionStorage);
+      // 카카오는 이메일 없이 닉네임만 요청 (비즈 앱 전환 전에도 로그인 가능)
+      location.href = b.dataset.login === "kakao"
+        ? "https://kauth.kakao.com/oauth/authorize?" + new URLSearchParams({
+            response_type: "code", client_id: L.kakaoRestKey, redirect_uri: BASE + "kakao-callback.html", scope: "profile_nickname", state })
+        : "https://nid.naver.com/oauth2.0/authorize?" + new URLSearchParams({
+            response_type: "code", client_id: L.naverClientId, redirect_uri: BASE + "naver-callback.html", state });
     };
   }
+  const loginLabel = u => /@kakao\.invalid$/.test(u.email || "") ? "카카오 계정" : (u.email || "");
 
   /* 처음 로그인한 회원 — 약관 동의 후 가입 완료 */
   function pageAgree(view, next) {
@@ -608,7 +607,7 @@
       <div class="page-title"><h2>회원가입</h2><p>계정 확인이 끝났어요. 약관에 동의하면 가입이 완료돼요.</p></div>
       <form class="box" id="agreeForm" novalidate>
         <div class="form">
-          <div class="field"><label>이메일</label><input value="${esc(USER.email || "")}" disabled></div>
+          <div class="field"><label>로그인 계정</label><input value="${esc(loginLabel(USER))}" disabled></div>
           <div class="field"><label for="a-name">이름</label><input id="a-name" maxlength="30" value="${esc(nm)}" autocomplete="name"></div>
         </div>
         <div class="agree">
@@ -617,7 +616,7 @@
           <label class="chk"><input type="checkbox" data-req><span>[필수] <a href="terms.html" target="_blank">이용약관</a> 동의</span></label>
           <label class="chk"><input type="checkbox" data-req>[필수] 개인정보 수집·이용 동의</label>
           <div class="agree-box">
-            <b>수집 항목</b> 이메일, 이름, 카카오·네이버 회원 식별값 (주문 시 휴대폰 번호·배송지)<br>
+            <b>수집 항목</b> 이름(닉네임), 카카오·네이버 회원 식별값, 이메일(네이버 로그인 시) (주문 시 휴대폰 번호·배송지)<br>
             <b>이용 목적</b> 회원 식별, 주문·배송, 고객 상담, 회원 혜택 제공<br>
             <b>보유 기간</b> 회원 탈퇴 시까지 (주문·결제 기록은 전자상거래법에 따라 5년 보관)<br>
             동의를 거부할 수 있으며, 거부하면 회원가입은 할 수 없지만 비회원 주문은 가능합니다. <a href="privacy.html" target="_blank">개인정보처리방침</a>
@@ -646,21 +645,23 @@
     };
   }
 
-  /* 네이버 로그인 콜백 — 서버에서 네이버 확인 후 Supabase 로그인 토큰을 받아옴 */
-  async function pageNaver(view) {
+  /* 카카오·네이버 로그인 콜백 — 서버에서 계정 확인 후 Supabase 로그인 토큰을 받아옴 */
+  async function pageOAuth(view) {
+    const provider = PAGE, label = provider === "kakao" ? "카카오" : "네이버";
     const code = params.get("code"), state = params.get("state");
-    const saved = store.get("fg_naver_state", "", sessionStorage);
-    store.del("fg_naver_state", sessionStorage);
+    const saved = store.get("fg_oauth_state", "", sessionStorage);
+    store.del("fg_oauth_state", sessionStorage);
     history.replaceState(null, "", location.pathname);
-    if (!code || !state || state !== saved || !SB) { view.innerHTML = msgPage("네이버 로그인이 취소되었어요.", `<a class="btn ghost" style="display:inline-flex" href="login.html">로그인으로 돌아가기</a>`); return; }
-    view.innerHTML = `<p class="loading">네이버 계정으로 로그인하는 중이에요…</p>`;
+    const back = `<a class="btn ghost" style="display:inline-flex" href="login.html">로그인으로 돌아가기</a>`;
+    if (!code || !state || state !== saved || !SB) { view.innerHTML = msgPage(`${label} 로그인이 취소되었어요.`, back); return; }
+    view.innerHTML = `<p class="loading">${label} 계정으로 로그인하는 중이에요…</p>`;
     try {
-      const d = await api("/auth/naver", { code, state });
+      const d = await api(`/auth/${provider}`, { code, state, redirectUri: BASE + `${provider}-callback.html` });
       const { error } = await SB.auth.verifyOtp({ token_hash: d.tokenHash, type: "magiclink" });
       if (error) throw error;
       location.replace("login.html");
     } catch (err) {
-      view.innerHTML = msgPage(`네이버 로그인에 실패했어요.<br><small>${esc(err.message)}</small>`, `<a class="btn ghost" style="display:inline-flex" href="login.html">로그인으로 돌아가기</a>`);
+      view.innerHTML = msgPage(`${label} 로그인에 실패했어요.<br><small>${esc(err.message)}</small>`, back);
     }
   }
 
@@ -678,7 +679,7 @@
         <form class="box" id="profForm" novalidate>
           <div class="box-h"><b>회원 정보</b></div>
           <div class="form stack">
-            <div class="field"><label>이메일</label><input value="${esc(USER.email || "")}" disabled></div>
+            <div class="field"><label>로그인 계정</label><input value="${esc(loginLabel(USER))}" disabled></div>
             <div class="field"><label for="p-name">이름</label><input id="p-name" maxlength="30" value="${esc(PROFILE.name || "")}" autocomplete="name"></div>
             <div class="field"><label for="p-tel">휴대폰</label><input id="p-tel" maxlength="13" value="${esc(PROFILE.phone || "")}" inputmode="tel" autocomplete="tel"></div>
             <div class="field"><label for="p-addr">기본 배송지</label><input id="p-addr" maxlength="200" value="${esc(PROFILE.address || "")}" autocomplete="street-address"></div>
@@ -768,7 +769,10 @@
     const load = async () => {
       view.innerHTML = `<p class="loading">주문을 불러오는 중…</p>`;
       try { ({ orders: rows } = await api(`/admin/orders?status=${status}`, null, "GET")); draw(); }
-      catch (err) { view.innerHTML = msgPage(esc(err.message)); }
+      catch (err) {
+        view.innerHTML = msgPage(esc(err.message) + (/권한/.test(err.message)
+          ? `<br><small>이 계정을 관리자로 쓰려면 Cloudflare 워커의 ADMIN_EMAILS 에<br><b class="num" style="color:var(--ink)">${esc(USER.email)}</b> 를 넣으세요.</small>` : ""));
+      }
     };
     view.onclick = async e => {
       const tab = e.target.closest("[data-tab]");
@@ -821,6 +825,6 @@
     await initAuth();
     shell();
     ({ home: pageHome, shop: pageShop, product: pageProduct, cart: pageCart, order: pageOrder,
-       login: pageLogin, naver: pageNaver, mypage: pageMypage, lookup: pageLookup, admin: pageAdmin, policy: pagePolicy }[PAGE] || pageHome)(view);
+       login: pageLogin, naver: pageOAuth, kakao: pageOAuth, mypage: pageMypage, lookup: pageLookup, admin: pageAdmin, policy: pagePolicy }[PAGE] || pageHome)(view);
   })();
 })();

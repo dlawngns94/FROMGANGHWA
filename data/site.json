@@ -41,6 +41,7 @@
 
   "login": {
     "kakao": true,
+    "kakaoRestKey": "4ae11af766f76dd1c84472ff05f1f60f",
     "naverClientId": ""
   },
 

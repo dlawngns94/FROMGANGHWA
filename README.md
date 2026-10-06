@@ -12,7 +12,7 @@ product.html      상품 상세
 cart.html         장바구니
 order.html        주문서 · 네이버페이/카카오페이 결제 · 주문 완료
 login.html        카카오·네이버 로그인 = 회원가입 (처음이면 약관 동의 화면)
-naver-callback.html  네이버 로그인 후 돌아오는 화면 (직접 열 일 없음)
+naver-callback.html, kakao-callback.html  로그인 후 돌아오는 화면 (직접 열 일 없음)
 mypage.html       마이페이지 (주문 내역 · 회원 정보 · 탈퇴)
 lookup.html       비회원 주문조회 (주문번호 + 휴대폰)
 admin.html        관리자 주문 관리 (ADMIN_EMAILS 계정만)
@@ -145,17 +145,20 @@ GitHub 웹에서 `data/products.json` 을 열고 ✏️(연필) → 수정 → *
 
 ### 4-3. 카카오 로그인
 
+이메일 없이 **닉네임만** 받아 로그인합니다. 비즈 앱 전환 전에도 쓸 수 있어요. (로그인 처리는 워커가 직접 하고, Supabase 의 Kakao 설정은 쓰지 않습니다)
+
 1. https://developers.kakao.com → 내 애플리케이션 → **애플리케이션 추가**
 2. 앱 설정 → **플랫폼 → Web** 사이트 도메인: `https://dlawngns94.github.io`
-3. **카카오 로그인** 활성화 ON → Redirect URI: `https://프로젝트ID.supabase.co/auth/v1/callback`
-4. **동의항목**: 닉네임(필수), **카카오계정(이메일)(필수)**
-   - 이메일을 필수로 받으려면 **비즈 앱 전환**(앱 설정 → 비즈니스 → 사업자 정보 등록)이 필요합니다. 사업자등록번호로 신청하세요.
-5. **보안 → Client Secret** 코드 생성 · 활성화
-6. Supabase → **Authentication → Sign In / Providers → Kakao** 켜기
-   - Client ID: 카카오 **REST API 키**, Client Secret: 5번 값
-7. `data/site.json` 의 `"login": { "kakao": true }` (기본값) 확인
+3. **카카오 로그인** 활성화 ON → **Redirect URI** 에 추가:
+   `https://dlawngns94.github.io/FROMGANGHWA/kakao-callback.html`
+4. **동의항목**: **닉네임** 을 '필수 동의'로 설정 (이메일·프로필 사진은 설정하지 않아도 됨)
+5. **REST API 키** → `data/site.json` 의 `"login": { "kakao": true, "kakaoRestKey": "…" }` (공개돼도 되는 값)
+6. **보안 → Client Secret** 을 켰다면, 그 코드를 Cloudflare 워커 변수 `KAKAO_LOGIN_CLIENT_SECRET` 🔒 에 넣기
+7. 워커 코드를 바꿨다면 Cloudflare 에서 `server/worker.js` 를 다시 붙여넣고 Deploy
 
-> 카카오 콘솔 메뉴 이름은 자주 바뀝니다. 위치가 다르면 같은 이름의 항목을 찾아 주세요.
+> 카카오 회원은 Supabase 에 `kakao_회원번호@kakao.invalid` 라는 내부용 주소로 저장됩니다 (메일은 가지 않음).
+> 관리자로 쓰려면 로그인 후 `admin.html` 에 들어가면 화면에 이 주소가 나오니, 그대로 `ADMIN_EMAILS` 에 넣으세요.
+> 나중에 비즈 앱으로 전환해도 같은 회원번호로 계속 로그인됩니다.
 
 ### 4-4. 네이버 로그인
 

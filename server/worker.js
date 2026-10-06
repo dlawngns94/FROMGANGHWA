@@ -12,6 +12,7 @@
  *  POST /test/pay            테스트 결제 (TEST_MODE=true 일 때만)
  *  POST /orders/lookup       비회원 주문조회 (주문번호 + 휴대폰)
  *  POST /auth/naver          네이버 로그인 → Supabase 로그인 토큰 발급
+ *  POST /auth/kakao          카카오 로그인 → Supabase 로그인 토큰 발급
  *  POST /me/withdraw         회원 탈퇴
  *  GET  /admin/orders        관리자: 주문 목록
  *  POST /admin/order         관리자: 상태·운송장 저장
@@ -30,6 +31,7 @@
  *  KAKAOPAY_SECRET_KEY      🔒 카카오페이 개발자센터의 Secret key (DEV… 또는 PRD…)
  *  NAVER_LOGIN_CLIENT_ID       네이버 로그인 애플리케이션 Client ID
  *  NAVER_LOGIN_CLIENT_SECRET 🔒
+ *  KAKAO_LOGIN_CLIENT_SECRET 🔒 카카오 로그인 Client Secret (카카오 콘솔에서 켠 경우만)
  *
  * 외부 API 경로·파라미터는 각 개발자센터 최신 문서로 한 번 더 확인하세요.
  */
@@ -84,6 +86,7 @@ const ROUTES = {
   "POST /test/pay": testPay,
   "POST /orders/lookup": lookup,
   "POST /auth/naver": naverLogin,
+  "POST /auth/kakao": kakaoLogin,
   "POST /me/withdraw": withdraw,
   "GET /admin/orders": adminOrders,
   "POST /admin/order": adminUpdate,
@@ -258,24 +261,52 @@ async function naverLogin({ env, body }) {
   const p = me.response || {};
   if (!p.id) fail(401, "네이버 회원 정보를 받지 못했어요");
   if (!p.email) fail(400, "네이버 로그인 화면에서 이메일 제공에 동의해 주세요");
+  return { tokenHash: await issueLogin(env, p.email, { name: p.name || p.nickname || "", provider: "naver", naver_id: p.id }) };
+}
 
-  // Supabase 회원 만들기 (이미 있으면 그대로) → 1회용 로그인 토큰 발급
+/* ---------------- 카카오 로그인 ----------------
+ * Supabase 기본 카카오 연동은 이메일(account_email)을 항상 요청해서, 비즈 앱 전환 전에는 로그인이 막힙니다.
+ * 그래서 닉네임만 받아 직접 처리하고, 회원은 카카오 회원번호로 만든 내부용 주소(kakao_번호@kakao.invalid)로 구분합니다.
+ * (이 주소로는 메일이 가지 않습니다)
+ */
+async function kakaoLogin({ env, body }) {
+  const { code, redirectUri } = body;
+  if (!code || !redirectUri || !String(redirectUri).startsWith(`${env.SITE_URL}/`)) fail(400, "잘못된 요청");
+  const { site } = await catalog(env);
+  const clientId = site.login && site.login.kakaoRestKey;
+  if (!clientId) fail(500, "카카오 로그인 설정 누락: site.json 의 login.kakaoRestKey");
+
+  const form = { grant_type: "authorization_code", client_id: clientId, redirect_uri: redirectUri, code };
+  if (env.KAKAO_LOGIN_CLIENT_SECRET) form.client_secret = env.KAKAO_LOGIN_CLIENT_SECRET;
+  const tok = await fetch("https://kauth.kakao.com/oauth/token", {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded;charset=utf-8" }, body: new URLSearchParams(form),
+  }).then(r => r.json()).catch(() => ({}));
+  if (!tok.access_token) {
+    console.error("KAKAO_TOKEN", JSON.stringify(tok));
+    fail(401, tok.error_code === "KOE010" ? "카카오 Client Secret 설정을 확인해 주세요 (워커의 KAKAO_LOGIN_CLIENT_SECRET)" : (tok.error_description || "카카오 인증에 실패했어요"));
+  }
+  const me = await fetch("https://kapi.kakao.com/v2/user/me", { headers: { Authorization: `Bearer ${tok.access_token}` } })
+    .then(r => r.json()).catch(() => ({}));
+  if (!me.id) fail(401, "카카오 회원 정보를 받지 못했어요");
+  const name = (me.kakao_account && me.kakao_account.profile && me.kakao_account.profile.nickname) || (me.properties && me.properties.nickname) || "";
+  return { tokenHash: await issueLogin(env, `kakao_${me.id}@kakao.invalid`, { name, provider: "kakao", kakao_id: String(me.id) }) };
+}
+
+/* Supabase 회원 만들기 (이미 있으면 그대로) → 1회용 로그인 토큰 발급 */
+async function issueLogin(env, email, meta) {
   const auth = (path, payload) => fetch(`${env.SUPABASE_URL}/auth/v1/admin/${path}`, {
     method: "POST", headers: sbHeaders(env), body: JSON.stringify(payload),
   });
-  const created = await auth("users", {
-    email: p.email, email_confirm: true,
-    user_metadata: { name: p.name || p.nickname || "", provider: "naver", naver_id: p.id },
-  });
+  const created = await auth("users", { email, email_confirm: true, user_metadata: meta });
   if (!created.ok && created.status !== 422 && created.status !== 400) {
-    console.error("NAVER_CREATE", created.status, await created.text());
+    console.error("LOGIN_CREATE", created.status, await created.text());
     fail(500, "회원 정보를 만들지 못했어요");
   }
-  const link = await auth("generate_link", { type: "magiclink", email: p.email });
+  const link = await auth("generate_link", { type: "magiclink", email });
   const l = await link.json().catch(() => ({}));
   const tokenHash = l.hashed_token || (l.properties && l.properties.hashed_token);
-  if (!link.ok || !tokenHash) { console.error("NAVER_LINK", link.status, JSON.stringify(l)); fail(500, "로그인 토큰을 만들지 못했어요"); }
-  return { tokenHash };
+  if (!link.ok || !tokenHash) { console.error("LOGIN_LINK", link.status, JSON.stringify(l)); fail(500, "로그인 토큰을 만들지 못했어요"); }
+  return tokenHash;
 }
 
 /* ---------------- 회원 탈퇴 ---------------- */
