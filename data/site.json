@@ -40,7 +40,7 @@
   },
 
   "login": {
-    "kakao": false,
+    "kakao": true,
     "naverClientId": ""
   },
 
