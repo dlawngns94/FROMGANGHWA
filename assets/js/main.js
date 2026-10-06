@@ -83,8 +83,14 @@
     if (!res.ok || d.ok === false) throw new Error(d.message || `요청에 실패했어요 (${res.status})`);
     return d;
   }
-  async function logout() {
+  // 로그아웃·탈퇴 시: 같은 기기를 쓰는 다음 사람에게 장바구니·배송지가 남지 않도록 비움
+  async function signOutClean() {
     if (SB) await SB.auth.signOut();
+    ["fg_cart", "fg_ship"].forEach(k => store.del(k));
+    ["fg_buynow", "fg_pending", "fg_next"].forEach(k => store.del(k, sessionStorage));
+  }
+  async function logout() {
+    await signOutClean();
     location.href = "index.html";
   }
 
@@ -700,7 +706,7 @@
     $("[data-withdraw]", view).onclick = async () => {
       if (!confirm("정말 탈퇴할까요?\n회원 정보는 바로 삭제되고, 주문·결제 기록은 전자상거래법에 따라 5년간 보관 후 삭제됩니다.")) return;
       try { await api("/me/withdraw"); } catch (err) { return toast(`탈퇴하지 못했어요: ${err.message}`); }
-      await SB.auth.signOut();
+      await signOutClean();
       alert("탈퇴가 완료되었어요. 그동안 이용해 주셔서 감사합니다.");
       location.replace("index.html");
     };

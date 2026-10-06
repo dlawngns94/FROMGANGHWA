@@ -164,6 +164,7 @@ dl.info dt{color:var(--sub)}
 .sum .r span:first-child{color:var(--sub)}
 .sum .tot{border-top:1px solid var(--line);padding-top:14px;align-items:baseline}
 .sum .tot b{font-size:22px}
+.sum > .btn{flex:none}
 .sum .hint{font-size:12px;color:var(--brand);background:var(--brand-soft);padding:8px 10px;border-radius:4px}
 .form{padding:8px 20px 20px;display:grid;gap:14px}
 .field{display:grid;grid-template-columns:100px minmax(0,1fr);align-items:center;gap:12px}
