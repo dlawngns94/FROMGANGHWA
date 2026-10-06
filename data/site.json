@@ -32,15 +32,15 @@
     { "id": "craft", "name": "이리저리 체험관" }
   ],
 
-  "api": "",
+  "api": "https://fromganghwa-api.dlawngns94.workers.dev",
 
   "supabase": {
-    "url": "",
-    "anonKey": ""
+    "url": "https://kmwxaoconaneebijvtdh.supabase.co",
+    "anonKey": "sb_publishable_j9Svw_6ofdarASpskmM5nQ_5FOUamhG"
   },
 
   "login": {
-    "kakao": true,
+    "kakao": false,
     "naverClientId": ""
   },
 
