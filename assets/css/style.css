@@ -58,7 +58,7 @@ header.site{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;backgrou
 .hero{position:relative;background:var(--soft);overflow:hidden}
 .slides{display:flex;transition:transform .6s ease}
 .slide{flex:0 0 100%;display:grid;grid-template-columns:1fr 1fr;min-height:340px}
-.slide .copy{display:flex;flex-direction:column;justify-content:center;gap:12px;padding:40px max(16px,calc((100vw - var(--wrap))/2 + 16px))}
+.slide .copy{display:flex;flex-direction:column;justify-content:center;gap:12px;padding:40px 40px 40px max(16px,calc((100vw - var(--wrap))/2 + 16px))}
 .slide .eyebrow{font-size:13px;letter-spacing:.12em;color:var(--sub)}
 .slide h2{font-family:var(--display);font-size:clamp(26px,3.6vw,40px);line-height:1.25;margin:0;text-wrap:balance;font-weight:700}
 .slide p{margin:0;color:var(--sub)}
