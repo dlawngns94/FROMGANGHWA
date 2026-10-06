@@ -6,8 +6,8 @@
 
   "company": {
     "corpName": "프롬강화",
-    "ceo": "조영인",
-    "businessNumber": "645-08-01832",
+    "ceo": "진봉금",
+    "businessNumber": "512-09-96768",
     "mailOrderNumber": "(입력 필요)",
     "address": "인천광역시 강화군",
     "email": "hi-imagine@naver.com"
@@ -32,10 +32,30 @@
     { "id": "craft", "name": "이리저리 체험관" }
   ],
 
+  "api": "",
+
+  "supabase": {
+    "url": "",
+    "anonKey": ""
+  },
+
+  "login": {
+    "kakao": true,
+    "naverClientId": ""
+  },
+
+  "member": {
+    "firstOrderDiscount": 10
+  },
+
   "naverpay": {
     "mode": "development",
     "clientId": "",
-    "chainId": "",
-    "approveEndpoint": ""
+    "chainId": ""
+  },
+
+  "kakaopay": {
+    "enabled": false,
+    "mode": "development"
   }
 }

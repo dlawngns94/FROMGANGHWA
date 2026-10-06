@@ -230,3 +230,80 @@ footer.site{border-top:1px solid var(--line);margin-top:24px;padding-block:36px 
 .loading{padding-block:120px;text-align:center;color:var(--mute)}
 .detail-text{margin:28px 0 0;color:var(--sub);font-size:14px;line-height:1.8;max-width:60ch}
 @media (max-width:560px){.logo img{height:32px}.logo .tag{display:none}}
+
+/* 결제 수단 색 */
+:root{--kpay:#fee500;--kpay-ink:#191919}
+.btn.kpay,.btn.kakao{background:var(--kpay);color:var(--kpay-ink);width:100%;font-weight:700}
+.btn.naver{background:var(--npay);color:var(--npay-ink);width:100%;font-weight:700}
+.btn.naver .n{display:inline-grid;place-items:center;width:22px;height:22px;background:var(--npay-ink);color:var(--npay);border-radius:3px;font-weight:900;font-size:14px}
+.sheet-h.kpay{background:var(--kpay);color:var(--kpay-ink)}
+label.pay-opt{cursor:pointer}
+.pm-mark{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:4px;font-size:13px;font-weight:900}
+.pm-mark.npay{background:var(--npay);color:var(--npay-ink)}
+.pm-mark.kpay{background:var(--kpay);color:var(--kpay-ink)}
+.pm-mark .n{all:unset}
+
+/* 체크박스 · 안내 */
+.chk{display:flex;align-items:flex-start;gap:8px;font-size:14px;cursor:pointer;line-height:1.5}
+.chk input{width:18px;height:18px;margin:1px 0 0;flex:none;accent-color:var(--brand)}
+.chk a,.notice a,.agree-box a{text-decoration:underline}
+.agree-pay{font-size:12px;color:var(--sub)}
+.notice{background:var(--brand-soft);color:var(--ink);border-radius:6px;padding:12px 16px;font-size:13px;line-height:1.6}
+.notice a{color:var(--brand);font-weight:700}
+
+/* 로그인 · 회원가입 */
+.auth{max-width:440px;margin-inline:auto;padding-bottom:72px}
+.auth-perk{text-align:center;margin:-8px 0 20px;color:var(--sale);font-size:14px}
+.auth-btns{display:grid;gap:10px;margin-bottom:12px}
+.auth-guest{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:36px;padding-top:20px;border-top:1px solid var(--line);font-size:14px;color:var(--sub)}
+.auth-guest .btn{flex:none;height:42px;font-size:14px}
+.agree{display:grid;gap:12px;padding:16px 20px;border-top:1px solid var(--line)}
+.agree .all{padding-bottom:12px;border-bottom:1px solid var(--line)}
+.agree-box{background:var(--soft);border-radius:4px;padding:12px;font-size:12px;color:var(--sub);line-height:1.7}
+.agree-box b{color:var(--ink);font-weight:500;margin-right:4px}
+.auth-actions{display:flex;gap:8px;padding:0 20px 20px}
+.auth-actions .btn{height:48px;font-size:15px}
+
+/* 마이페이지 · 주문 카드 */
+.form.stack .field{grid-template-columns:1fr;gap:6px}
+.my-links{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);padding-inline:4px}
+.my-links button:hover{color:var(--ink);text-decoration:underline}
+.ord{padding:18px 20px;border-bottom:1px solid var(--line);display:grid;gap:8px;font-size:14px}
+.ord:last-child{border-bottom:0}
+.ord-h{display:flex;justify-content:space-between;align-items:center;color:var(--sub);font-size:13px}
+.st{font-size:12px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--brand-soft);color:var(--brand)}
+.st-cancelled,.st-pending{background:var(--soft);color:var(--mute)}
+.st-shipped{background:#fff3d6;color:#8a5a00}
+.ord-no{font-size:12px;color:var(--mute)}
+.ord-items{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.ord-items li{display:flex;justify-content:space-between;gap:12px}
+.ord-f{display:flex;justify-content:space-between;align-items:baseline;border-top:1px dashed var(--line);padding-top:8px;color:var(--sub)}
+.ord-f b{color:var(--ink);font-size:16px}
+.ord-track{font-size:13px;color:var(--brand)}
+.ord-ship{display:grid;grid-template-columns:72px 1fr;gap:4px 8px;margin:4px 0 0;font-size:13px}
+.ord-ship dt{color:var(--mute)}
+.ord-ship dd{margin:0;word-break:break-all}
+.adm-edit{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.adm-edit select,.adm-edit input{height:38px;border:1px solid var(--line);border-radius:4px;padding-inline:10px;background:var(--bg);min-width:0}
+.adm-edit input{flex:1 1 120px}
+.adm-edit .btn{height:38px;font-size:13px;flex:none;padding-inline:14px}
+
+/* 약관 · 개인정보처리방침 */
+.policy{max-width:760px;margin-inline:auto;padding-block:48px 72px;font-size:14px;line-height:1.75;color:var(--ink)}
+.policy h1{font-family:var(--display);font-size:28px;text-align:center;margin:0 0 28px}
+.policy h2{font-size:16px;margin:32px 0 10px}
+.policy p{margin:0 0 10px}
+.policy ul{margin:0 0 10px;padding-left:20px}
+.policy a{color:var(--brand);text-decoration:underline}
+.policy table{width:100%;border-collapse:collapse;margin:8px 0 12px;font-size:13px}
+.policy th,.policy td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+.policy th{background:var(--soft);font-weight:500;white-space:nowrap}
+
+/* 모바일 헤더: 텍스트 링크 대신 사람 아이콘 */
+.user-btn{display:none;width:40px;height:40px;place-items:center}
+@media (max-width:560px){
+  .h-icons{gap:4px}
+  .user-btn{display:grid}
+  .policy th{white-space:normal}
+  .policy table{display:block;overflow-x:auto}
+}
