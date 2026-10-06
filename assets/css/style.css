@@ -39,7 +39,7 @@ input,select,textarea{font:inherit;color:var(--ink)}
 header.site{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--bg);border-bottom:1px solid var(--line)}
 .h-row{display:flex;align-items:center;gap:24px;padding-block:18px 14px}
 .logo{display:flex;align-items:center;gap:10px;flex-shrink:0}
-.logo img{height:40px;width:auto;display:block}
+.logo img{height:58px;width:auto;display:block}
 .logo .tag{font-size:12px;color:var(--sub);letter-spacing:.08em}
 .search{flex:1;max-width:400px;display:flex;align-items:center;border:1.5px solid var(--brand);border-radius:6px;height:46px;padding-inline:14px 6px;min-width:0}
 .search input{flex:1;border:0;outline:0;min-width:0;background:transparent;font-size:15px}
@@ -229,7 +229,7 @@ footer.site{border-top:1px solid var(--line);margin-top:24px;padding-block:36px 
 
 .loading{padding-block:120px;text-align:center;color:var(--mute)}
 .detail-text{margin:28px 0 0;color:var(--sub);font-size:14px;line-height:1.8;max-width:60ch}
-@media (max-width:560px){.logo img{height:32px}.logo .tag{display:none}}
+@media (max-width:560px){.logo img{height:44px}.logo .tag{display:none}}
 
 /* 결제 수단 색 */
 :root{--kpay:#fee500;--kpay-ink:#191919}
