@@ -113,8 +113,8 @@ GitHub 웹에서 `data/products.json` 을 열고 ✏️(연필) → 수정 → *
    - Project URL, **anon / publishable** 키 → `data/site.json` 의 `supabase`
    - **service_role / secret** 키 → 4-2 의 Cloudflare Secret 에만
 4. **Authentication → URL Configuration**
-   - Site URL: `https://dlawngns94.github.io/FROMGANGHWA/`
-   - Redirect URLs 에 추가: `https://dlawngns94.github.io/FROMGANGHWA/login.html`
+   - Site URL: `https://www.fromganghwa.co.kr/`
+   - Redirect URLs 에 추가: `https://www.fromganghwa.co.kr/login.html`
 
 ```json
 "supabase": { "url": "https://프로젝트ID.supabase.co", "anonKey": "anon 또는 publishable 키" }
@@ -128,7 +128,7 @@ GitHub 웹에서 `data/products.json` 을 열고 ✏️(연필) → 수정 → *
 
    | 이름 | 값 |
    |---|---|
-   | `SITE_URL` | `https://dlawngns94.github.io/FROMGANGHWA` (끝에 `/` 없이) |
+   | `SITE_URL` | `https://www.fromganghwa.co.kr` (끝에 `/` 없이) |
    | `SUPABASE_URL` | `https://프로젝트ID.supabase.co` |
    | `SUPABASE_SERVICE_KEY` 🔒 | Supabase service_role(secret) 키 |
    | `ADMIN_EMAILS` | 관리자로 쓸 카카오·네이버 계정 이메일 (여러 개면 쉼표) |
@@ -148,9 +148,9 @@ GitHub 웹에서 `data/products.json` 을 열고 ✏️(연필) → 수정 → *
 이메일 없이 **닉네임만** 받아 로그인합니다. 비즈 앱 전환 전에도 쓸 수 있어요. (로그인 처리는 워커가 직접 하고, Supabase 의 Kakao 설정은 쓰지 않습니다)
 
 1. https://developers.kakao.com → 내 애플리케이션 → **애플리케이션 추가**
-2. 앱 설정 → **플랫폼 → Web** 사이트 도메인: `https://dlawngns94.github.io`
+2. 앱 설정 → **플랫폼 → Web** 사이트 도메인: `https://www.fromganghwa.co.kr`
 3. **카카오 로그인** 활성화 ON → **Redirect URI** 에 추가:
-   `https://dlawngns94.github.io/FROMGANGHWA/kakao-callback.html`
+   `https://www.fromganghwa.co.kr/kakao-callback.html`
 4. **동의항목**: **닉네임** 을 '필수 동의'로 설정 (이메일·프로필 사진은 설정하지 않아도 됨)
 5. **REST API 키** → `data/site.json` 의 `"login": { "kakao": true, "kakaoRestKey": "…" }` (공개돼도 되는 값)
 6. **보안 → Client Secret** 을 켰다면, 그 코드를 Cloudflare 워커 변수 `KAKAO_LOGIN_CLIENT_SECRET` 🔒 에 넣기
@@ -164,8 +164,8 @@ GitHub 웹에서 `data/products.json` 을 열고 ✏️(연필) → 수정 → *
 
 1. https://developers.naver.com → Application → **애플리케이션 등록**
    - 사용 API: **네이버 로그인** / 제공 정보: **이메일(필수)**, 이름
-   - 환경: PC 웹 / 서비스 URL: `https://dlawngns94.github.io`
-   - Callback URL: `https://dlawngns94.github.io/FROMGANGHWA/naver-callback.html`
+   - 환경: PC 웹 / 서비스 URL: `https://www.fromganghwa.co.kr`
+   - Callback URL: `https://www.fromganghwa.co.kr/naver-callback.html`
 2. Client ID → `data/site.json` 의 `"login": { "naverClientId": "…" }`
 3. Cloudflare 워커 변수: `NAVER_LOGIN_CLIENT_ID`, `NAVER_LOGIN_CLIENT_SECRET` 🔒
 4. 처음엔 '개발 중' 상태라 **멤버 관리에 등록한 네이버 아이디만** 로그인됩니다. 테스트 후 **검수 요청**을 하면 모두에게 열립니다.
@@ -217,14 +217,20 @@ GitHub 웹에서 `data/products.json` 을 열고 ✏️(연필) → 수정 → *
 - **회원 탈퇴**: 회원 정보는 바로 삭제되고, 주문·결제 기록은 전자상거래법에 따라 회원 연결만 끊고 5년 보관합니다.
 - 결제하지 않고 떠난 주문서는 1일 뒤 자동 삭제됩니다.
 
-## 5. 공식 도메인 연결
+## 5. 공식 도메인 (연결 완료: www.fromganghwa.co.kr)
 
-1. 저장소 **Settings → Pages → Custom domain** 에 도메인 입력 → Save (`CNAME` 파일 자동 생성)
-2. 도메인 구입처 DNS에 추가
-   - `A` 레코드 4개: `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
-   - `www` → `CNAME` → `dlawngns94.github.io`
-3. 연결 후 **Enforce HTTPS** 체크
-4. 도메인을 바꿨으면 Cloudflare 워커의 `SITE_URL` 과 네이버페이 개발자센터 도메인도 같이 변경
+- 도메인: `fromganghwa.co.kr` (카페24, 만료 2028-10-07) → 사이트 주소는 **`https://www.fromganghwa.co.kr`**
+- 카페24 **DNS 관리**: `www` → `CNAME` → `dlawngns94.github.io`, www 없는 주소 → `A` → `185.199.108.153`
+  (카페24는 A 레코드를 1개만 받아서 하나만 등록. 네임서버는 '카페24 호스팅 네임서버' 그대로 두기)
+- GitHub 저장소 **Settings → Pages → Custom domain** = `www.fromganghwa.co.kr`, **Enforce HTTPS** 체크
+- 예전 주소(`dlawngns94.github.io/FROMGANGHWA`)와 `fromganghwa.co.kr` 은 자동으로 www 주소로 넘어갑니다
+
+도메인을 다시 바꾸게 되면 함께 바꿀 곳:
+- Cloudflare 워커 `SITE_URL`
+- 카카오 콘솔: 플랫폼 Web 사이트 도메인, Redirect URI (`…/kakao-callback.html`)
+- 네이버 로그인: 서비스 URL, Callback URL (`…/naver-callback.html`)
+- 네이버페이·카카오페이 개발자센터의 서비스 도메인
+- 주소가 바뀌면 브라우저에 저장된 로그인·장바구니는 초기화됩니다
 
 ## 6. 색상 · 로고 바꾸기
 
