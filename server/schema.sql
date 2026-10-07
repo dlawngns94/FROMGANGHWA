@@ -64,3 +64,23 @@ create policy "본인 주문 조회" on public.orders for select to authenticate
 revoke all on public.orders from anon;
 revoke insert, update, delete on public.orders from authenticated;
 grant select on public.orders to authenticated;
+
+-- 회원 장바구니 (2026-10 추가) -------------------------------------------
+-- 로그아웃 후 다시 로그인하거나 다른 기기에서도 장바구니가 그대로 보이게 저장합니다.
+create table if not exists public.carts (
+  user_id     uuid primary key references auth.users (id) on delete cascade,  -- 탈퇴하면 함께 삭제
+  items       jsonb not null default '[]'::jsonb,   -- [{ "id": "p01", "qty": 2 }, …]
+  updated_at  timestamptz not null default now()
+);
+
+alter table public.carts enable row level security;
+
+drop policy if exists "본인 장바구니 조회" on public.carts;
+drop policy if exists "본인 장바구니 생성" on public.carts;
+drop policy if exists "본인 장바구니 수정" on public.carts;
+create policy "본인 장바구니 조회" on public.carts for select to authenticated using ((select auth.uid()) = user_id);
+create policy "본인 장바구니 생성" on public.carts for insert to authenticated with check ((select auth.uid()) = user_id);
+create policy "본인 장바구니 수정" on public.carts for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+
+revoke all on public.carts from anon;
+grant select, insert, update on public.carts to authenticated;

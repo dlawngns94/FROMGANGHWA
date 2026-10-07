@@ -27,7 +27,7 @@
   };
   let cart = store.get("fg_cart", []);
   if (!Array.isArray(cart)) cart = [];
-  const saveCart = () => { cart = cart.filter(l => byId(l.id)); store.set("fg_cart", cart); renderBadge(); };
+  const saveCart = () => { cart = cart.filter(l => byId(l.id)); store.set("fg_cart", cart); renderBadge(); pushCart(); };
   const cartCount = () => cart.reduce((s, l) => s + l.qty, 0);
 
   /* 금액 계산 — server/worker.js 의 calcAmount 와 같은 규칙 */
@@ -84,9 +84,48 @@
     return d;
   }
   // 로그아웃·탈퇴 시: 같은 기기를 쓰는 다음 사람에게 장바구니·배송지가 남지 않도록 비움
+  /* 회원 장바구니 — Supabase carts 표에 저장해서 로그아웃 후 다시 로그인하거나 다른 기기에서도 그대로 보이게 함.
+     fg_cart_owner: 브라우저 장바구니가 누구 것인지 (회원 id / 비어 있으면 비회원) */
+  let cartTimer = null;
+  function pushCart() {
+    if (!isMember()) return;
+    clearTimeout(cartTimer);
+    cartTimer = setTimeout(flushCart, 300);
+  }
+  async function flushCart() {
+    if (cartTimer === null || !isMember()) return;
+    clearTimeout(cartTimer); cartTimer = null;
+    const items = cart.map(l => ({ id: l.id, qty: l.qty }));
+    const { error } = await SB.from("carts").upsert({ user_id: USER.id, items, updated_at: new Date().toISOString() });
+    if (error) console.warn("장바구니를 저장하지 못했어요", error.message);
+  }
+  addEventListener("pagehide", () => { flushCart(); });
+  async function syncCart() {
+    const owner = store.get("fg_cart_owner", "");
+    if (!isMember()) {
+      // 로그인이 만료된 회원의 장바구니가 남아 있으면 비움
+      if (owner) { cart = []; store.set("fg_cart", cart); store.del("fg_cart_owner"); }
+      return;
+    }
+    const { data, error } = await SB.from("carts").select("items").eq("user_id", USER.id).maybeSingle();
+    if (error) { console.warn("장바구니를 불러오지 못했어요", error.message); return; }
+    const saved = (data && Array.isArray(data.items) ? data.items : []).filter(l => byId(l.id));
+    if (owner === USER.id || !cart.length) { cart = saved; store.set("fg_cart", cart); store.set("fg_cart_owner", USER.id); return; }
+    // 로그인 직후: 비회원일 때 담은 상품을 회원 장바구니에 합침
+    const merged = saved.map(l => ({ ...l }));
+    for (const l of cart) {
+      const m = merged.find(x => x.id === l.id);
+      if (m) m.qty = Math.min(99, m.qty + l.qty); else merged.push({ id: l.id, qty: l.qty });
+    }
+    cart = merged;
+    store.set("fg_cart_owner", USER.id);
+    saveCart();
+  }
+
   async function signOutClean() {
+    await flushCart();
     if (SB) await SB.auth.signOut();
-    ["fg_cart", "fg_ship"].forEach(k => store.del(k));
+    ["fg_cart", "fg_cart_owner", "fg_ship"].forEach(k => store.del(k));
     ["fg_buynow", "fg_pending", "fg_next"].forEach(k => store.del(k, sessionStorage));
   }
   async function logout() {
@@ -829,6 +868,7 @@
       return;
     }
     await initAuth();
+    await syncCart();
     shell();
     ({ home: pageHome, shop: pageShop, product: pageProduct, cart: pageCart, order: pageOrder,
        login: pageLogin, naver: pageOAuth, kakao: pageOAuth, mypage: pageMypage, lookup: pageLookup, admin: pageAdmin, policy: pagePolicy }[PAGE] || pageHome)(view);
