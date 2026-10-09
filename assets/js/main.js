@@ -153,7 +153,7 @@
     const activeCat = PAGE === "shop" ? (params.get("cat") || (params.get("q") ? "" : "all")) : "";
     const me = isMember();
     document.body.insertAdjacentHTML("afterbegin", `
-      <div class="topbar">${esc(SITE.topbar)}</div>
+      ${SITE.topbar ? `<div class="topbar">${esc(SITE.topbar)}</div>` : ""}
       <header class="site"><div class="wrap">
         <div class="h-row">
           <a class="logo" href="index.html" aria-label="${esc(SITE.name)} 홈"><img src="assets/images/logo.png" alt="${esc(SITE.name)}"><span class="tag">${esc(SITE.nameEn)}</span></a>
@@ -704,7 +704,7 @@
     const perk = Number(SITE.member && SITE.member.firstOrderDiscount) || 0;
     view.innerHTML = `<div class="wrap"><div class="auth">
       <div class="page-title"><h2>로그인 · 회원가입</h2><p>카카오·네이버 계정으로 바로 가입하고 로그인해요</p></div>
-      ${perk && (kakao || naver) ? `<p class="auth-perk">지금 가입하면 <b>첫 주문 ${perk}% 할인</b></p>` : ""}
+      ${perk && !INQUIRY() && (kakao || naver) ? `<p class="auth-perk">지금 가입하면 <b>첫 주문 ${perk}% 할인</b></p>` : ""}
       <div class="auth-btns">
         ${kakao ? `<button class="btn kakao" data-login="kakao">${PAYS.kakaopay.mark}카카오로 시작하기</button>` : ""}
         ${naver ? `<button class="btn naver" data-login="naver"><span class="n">N</span>네이버로 시작하기</button>` : ""}
