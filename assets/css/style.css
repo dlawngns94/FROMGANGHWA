@@ -308,3 +308,25 @@ label.pay-opt{cursor:pointer}
   .policy th{white-space:normal}
   .policy table{display:block;overflow-x:auto}
 }
+
+/* 준비 중 카테고리 */
+.cats .off{flex-shrink:0;padding:10px 14px 12px;font-size:15px;font-weight:500;color:var(--mute);border-bottom:3px solid transparent;cursor:not-allowed;display:inline-flex;align-items:baseline;gap:4px}
+.cats .off small{font-size:10px;font-weight:700;color:var(--mute);background:var(--soft);border-radius:8px;padding:1px 6px}
+
+/* 구매 문의서 */
+.field.top{align-items:start}
+.field.top label{padding-top:10px}
+.field textarea{border:1px solid var(--line);border-radius:4px;padding:10px 12px;width:100%;background:var(--bg);resize:vertical;min-height:96px;line-height:1.6}
+.field textarea:focus{border-color:var(--brand);outline:0}
+.hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;opacity:0}
+.pill{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--brand-soft);color:var(--brand);font-weight:700}
+.st-q-new{background:#fde8e1;color:var(--sale)}
+.st-q-contacted{background:#fff3d6;color:#8a5a00}
+.st-q-done,.st-q-cancelled{background:var(--soft);color:var(--mute)}
+
+/* 관리자: 구매 문의 / 주문 전환 */
+.adm-sec{display:flex;gap:8px;margin-bottom:20px}
+.adm-sec button{height:40px;padding-inline:18px;border:1px solid var(--line);border-radius:20px;font-size:14px;color:var(--sub)}
+.adm-sec button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink);font-weight:700}
+/* 라벨 카드에 배지가 있으면 상단 글자를 배지 아래로 */
+.thumb:has(.flag) .label-tile .lt-top{margin-top:26px}

@@ -144,6 +144,9 @@
   };
   const payName = m => PAYS[m] ? PAYS[m].name : m === "test" ? "테스트 결제" : m;
   const payPill = m => PAYS[m].live() ? (PAYS[m].test() ? "테스트 결제" : "") : "시뮬레이터";
+  // 결제는 보류 중: site.json 의 checkout.mode 가 "inquiry" 면 결제 대신 구매 문의를 받음 ("payment" 로 바꾸면 결제 화면이 다시 켜짐)
+  const INQUIRY = () => !SITE.checkout || SITE.checkout.mode !== "payment";
+  const priceText = (p, qty = 1) => p.price ? `${won(p.price * qty)}원` : "가격 문의";
 
   /* ---------- 공통: 헤더 · 푸터 ---------- */
   function shell() {
@@ -172,7 +175,9 @@
           </div>
         </div>
         <nav class="cats" aria-label="카테고리">${SITE.categories.map(c =>
-          `<a href="shop.html?cat=${c.id}" aria-current="${activeCat === c.id}">${esc(c.name)}</a>`).join("")}</nav>
+          c.disabled
+            ? `<span class="off" aria-disabled="true" title="준비 중이에요">${esc(c.name)}<small>준비중</small></span>`
+            : `<a href="shop.html?cat=${c.id}" aria-current="${activeCat === c.id}">${esc(c.name)}</a>`).join("")}</nav>
       </div></header>`);
     const c = SITE.company;
     const pg = ["네이버페이", KP().enabled ? "카카오페이" : ""].filter(Boolean).join(" · ");
@@ -181,11 +186,11 @@
         <div class="f-row">
           <div><h4>고객행복센터</h4><p class="tel num">${esc(SITE.cs.tel)}</p><p>${esc(SITE.cs.hours)}</p></div>
           <div>
-            <div class="f-links"><span>회사소개</span><a href="terms.html">이용약관</a><a href="privacy.html"><b>개인정보처리방침</b></a><a href="lookup.html">비회원 주문조회</a></div>
+            <div class="f-links"><span>회사소개</span><a href="terms.html">이용약관</a><a href="privacy.html"><b>개인정보처리방침</b></a>${INQUIRY() ? "" : `<a href="lookup.html">비회원 주문조회</a>`}</div>
             <p>법인명(상호): ${esc(c.corpName)} · 대표자: ${esc(c.ceo)} · 사업자등록번호: ${esc(c.businessNumber)}<br>
             통신판매업신고: ${esc(c.mailOrderNumber)}<br>
             주소: ${esc(c.address)} · 이메일: ${esc(c.email)}<br>
-            결제대행: ${pg} · 고객님의 결제 정보는 프롬강화에 저장되지 않습니다.</p>
+            ${INQUIRY() ? "구매 문의를 남겨주시면 확인 후 연락드립니다." : `결제대행: ${pg} · 고객님의 결제 정보는 프롬강화에 저장되지 않습니다.`}</p>
           </div>
         </div>
         <p class="f-copy">© ${new Date().getFullYear()} ${esc(SITE.nameEn)}. ${esc(SITE.tagline)}.</p>
@@ -211,7 +216,7 @@
     const n1 = p.name.split(/ (?=\d)/)[0];
     return `<div class="label-tile" style="background:${esc(bg)};color:${esc(fg)}"><span class="lt-top">${esc(SITE.nameEn)}</span><span class="lt-name">${esc(n1)}</span><span class="lt-unit">${esc(p.unit)}</span></div>`;
   }
-  const shipLabel = p => p.ticket ? "모바일 발송" : "산지직송";
+  const shipLabel = p => p.ticket ? (INQUIRY() ? "체험 예약" : "모바일 발송") : "산지직송";
   function card(p) {
     const r = rate(p), href = `product.html?id=${p.id}`;
     return `<article class="card">
@@ -220,7 +225,7 @@
       <div class="c-ship">${shipLabel(p)}</div>
       <a class="c-name" href="${href}">${esc(p.name)}</a>
       <div class="c-desc">${esc(p.sub)}</div>
-      <div class="c-price num">${r ? `<span class="rate">${r}%</span>` : ""}<span class="now">${won(p.price)}원</span>${p.was ? `<span class="was">${won(p.was)}원</span>` : ""}</div>
+      <div class="c-price num">${r ? `<span class="rate">${r}%</span>` : ""}<span class="now">${priceText(p)}</span>${p.was ? `<span class="was">${won(p.was)}원</span>` : ""}</div>
     </article>`;
   }
   function addToCart(id, qty = 1) {
@@ -275,9 +280,11 @@
     const cat = params.get("cat") || "all", q = (params.get("q") || "").trim();
     let sort = "rec";
     const sorts = { rec: ["추천순", (a, b) => b.sold - a.sold], low: ["낮은 가격순", (a, b) => a.price - b.price], high: ["높은 가격순", (a, b) => b.price - a.price], sale: ["혜택순", (a, b) => rate(b) - rate(a)] };
-    const base = q ? PRODUCTS.filter(p => (p.name + p.sub).includes(q)) : PRODUCTS.filter(p => cat === "all" || p.cat === cat);
+    const off = new Set(SITE.categories.filter(c => c.disabled).map(c => c.id));
+    const base = (q ? PRODUCTS.filter(p => (p.name + p.sub).includes(q)) : PRODUCTS.filter(p => cat === "all" || p.cat === cat)).filter(p => !off.has(p.cat));
     const title = q ? `'${q}' 검색 결과` : (SITE.categories.find(c => c.id === cat) || SITE.categories[0]).name;
     document.title = `${title} | ${SITE.name}`;
+    if (!q && off.has(cat)) { view.innerHTML = `<div class="wrap"><div class="page-title"><h2>${esc(title)}</h2></div>${msgPage("준비 중인 카테고리예요. 곧 만나요!", `<a class="btn ghost" style="display:inline-flex" href="shop.html">전체 상품 보기</a>`)}</div>`; return; }
     const draw = () => {
       const items = [...base].sort(sorts[sort][1]);
       view.innerHTML = `<div class="wrap">
@@ -308,19 +315,19 @@
             <div class="d-ship">${shipLabel(p)}</div>
             <h2 class="d-name">${esc(p.name)}</h2>
             <p class="d-sub">${esc(p.sub)}</p>
-            <div class="d-price num">${r ? `<span class="rate">${r}%</span>` : ""}<span class="now">${won(p.price)}<small>원</small></span></div>
+            <div class="d-price num">${r ? `<span class="rate">${r}%</span>` : ""}<span class="now">${p.price ? `${won(p.price)}<small>원</small>` : "가격 문의"}</span></div>
             ${p.was ? `<div class="d-was num">${won(p.was)}원</div>` : ""}
             <dl class="info">
-              <dt>배송</dt><dd>${p.ticket ? "결제 후 문자로 이용권 발송" : `산지직송 · ${esc(SITE.shipping.cutoff)}<br><span style="color:var(--mute);font-size:13px">${won(SITE.shipping.freeOver)}원 이상 무료배송</span>`}</dd>
+              <dt>${p.ticket ? "이용" : "배송"}</dt><dd>${p.ticket ? (INQUIRY() ? "구매 문의 후 일정·비용을 안내해 드려요" : "결제 후 문자로 이용권 발송") : `산지직송 · ${esc(SITE.shipping.cutoff)}<br><span style="color:var(--mute);font-size:13px">${won(SITE.shipping.freeOver)}원 이상 무료배송</span>`}</dd>
               <dt>판매단위</dt><dd>${esc(p.unit)}</dd>
               <dt>포장타입</dt><dd>${esc(p.pack)}</dd>
               <dt>원산지</dt><dd>${esc(p.origin)}</dd>
               <dt>수량</dt><dd><div class="qty"><button data-q="-1" aria-label="수량 빼기" ${qty <= 1 ? "disabled" : ""}>−</button><span class="num">${qty}</span><button data-q="1" aria-label="수량 더하기">+</button></div></dd>
             </dl>
-            <div class="d-total"><span class="lbl">총 상품금액:</span><span class="v num">${won(p.price * qty)}</span><span>원</span></div>
+            ${p.price ? `<div class="d-total"><span class="lbl">총 상품금액:</span><span class="v num">${won(p.price * qty)}</span><span>원</span></div>` : `<div class="d-total"><span class="lbl">금액은 문의 후 안내해 드려요</span></div>`}
             <div class="d-actions">
               <button class="btn ghost" data-addqty>장바구니 담기</button>
-              <button class="btn primary" data-buynow>바로 구매</button>
+              <button class="btn primary" data-buynow>${INQUIRY() ? "구매 문의" : "바로 구매"}</button>
             </div>
             ${p.detail ? `<p class="detail-text">${esc(p.detail)}</p>` : ""}
           </div>
@@ -342,7 +349,7 @@
       <a class="mini" href="product.html?id=${p.id}">${visual(p)}</a>
       <div class="nm">${esc(p.name)}<small>${esc(p.pack)}</small></div>
       ${editable ? `<div class="qty"><button data-lq="${p.id}" data-d="-1" aria-label="수량 빼기" ${l.qty <= 1 ? "disabled" : ""}>−</button><span class="num">${l.qty}</span><button data-lq="${p.id}" data-d="1" aria-label="수량 더하기">+</button></div>` : `<div class="num" style="color:var(--sub);font-size:14px">${l.qty}개</div>`}
-      <div class="pr num">${won(p.price * l.qty)}원</div>
+      <div class="pr num">${priceText(p, l.qty)}</div>
       ${editable ? `<button class="x" data-del="${p.id}" aria-label="${esc(p.name)} 삭제">×</button>` : "<span></span>"}
     </div>`;
   }
@@ -353,7 +360,7 @@
         ${t.discount ? `<div class="r"><span>첫 주문 할인 (${t.discountRate}%)</span><span class="num" style="color:var(--sale)">−${won(t.discount)}원</span></div>` : ""}
         <div class="r"><span>배송비</span><span class="num">${t.ship ? "+" + won(t.ship) + "원" : "0원"}</span></div>
         ${t.ship ? `<div class="hint num">${won(free - t.goods)}원 더 담으면 무료배송</div>` : ""}
-        <div class="r tot"><span>결제예정금액</span><b class="num">${won(t.total)}원</b></div>
+        <div class="r tot"><span>${INQUIRY() ? "예상 금액" : "결제예정금액"}</span><b class="num">${won(t.total)}원</b></div>
       </div>${cta}</div>`;
   }
 
@@ -363,7 +370,7 @@
       if (!cart.length) { view.innerHTML = `<div class="wrap"><div class="page-title"><h2>장바구니</h2></div><p class="empty">장바구니에 담긴 상품이 없어요.<br><br><a class="btn ghost" style="display:inline-flex" href="shop.html">상품 보러 가기</a></p></div>`; return; }
       view.innerHTML = `<div class="wrap"><div class="page-title"><h2>장바구니</h2></div><div class="two">
         <div class="box"><div class="box-h"><b>담은 상품 <span class="num">${cartCount()}</span>개</b><button data-clear style="color:var(--sub);font-size:13px">전체 삭제</button></div>${cart.map(l => lineRow(l, true)).join("")}</div>
-        ${summaryBox(totals(cart), `<a class="btn primary" href="order.html">주문하기</a>`)}
+        ${summaryBox(totals(cart), `<a class="btn primary" href="order.html">${INQUIRY() ? "구매 문의하기" : "주문하기"}</a>`)}
       </div></div>`;
     };
     view.addEventListener("click", e => {
@@ -389,6 +396,7 @@
     // 결제창에서 돌아온 경우
     if (params.get("resultCode")) return naverReturn(view);
     if (params.get("kp")) return kakaoReturn(view);
+    if (INQUIRY()) return pageInquiry(view);
 
     const fromBuyNow = params.get("from") === "buynow";
     const lines = (fromBuyNow ? store.get("fg_buynow", [], sessionStorage) : cart).filter(l => byId(l.id)).map(l => ({ ...l }));
@@ -464,6 +472,74 @@
         toast(err.message);
       }
       btn.disabled = false;
+    };
+  }
+
+  /* ---------- 페이지: 구매 문의서 (결제 보류 중) ---------- */
+  function pageInquiry(view) {
+    document.title = `구매 문의 | ${SITE.name}`;
+    const fromBuyNow = params.get("from") === "buynow";
+    const lines = (fromBuyNow ? store.get("fg_buynow", [], sessionStorage) : cart).filter(l => byId(l.id)).map(l => ({ ...l }));
+    if (!lines.length) { view.innerHTML = msgPage("문의할 상품이 없어요.", `<a class="btn ghost" style="display:inline-flex" href="shop.html">상품 보러 가기</a>`); return; }
+    const me = isMember();
+    const t = totals(lines);
+    const quote = lines.some(l => !byId(l.id).price);
+    const needAddr = lines.some(l => !byId(l.id).ticket);
+    const saved = me ? { name: PROFILE.name, tel: PROFILE.phone, addr: PROFILE.address } : store.get("fg_ship", {});
+    view.innerHTML = `<div class="wrap"><div class="page-title"><h2>구매 문의</h2><p>남겨주신 연락처로 확인 후 연락드려요. 결제는 상담 후 안내해 드립니다.</p></div><div class="two">
+      <div style="display:grid;gap:20px;min-width:0">
+        <div class="box"><div class="box-h"><b>문의 상품</b><span class="num" style="color:var(--sub)">${lines.reduce((s, l) => s + l.qty, 0)}개</span></div>${lines.map(l => lineRow(l, false)).join("")}</div>
+        <form class="box" id="inqForm" novalidate>
+          <div class="box-h"><b>연락처</b></div>
+          <div class="form">
+            <div class="field"><label for="i-name">이름</label><input id="i-name" maxlength="30" value="${esc(saved.name || "")}" placeholder="이름" autocomplete="name"></div>
+            <div class="field"><label for="i-tel">휴대폰</label><input id="i-tel" maxlength="13" value="${esc(saved.tel || "")}" placeholder="010-0000-0000" inputmode="tel" autocomplete="tel"></div>
+            <div class="field"><label for="i-addr">${needAddr ? "배송 주소" : "주소 (선택)"}</label><input id="i-addr" maxlength="200" value="${esc(saved.addr || "")}" placeholder="${needAddr ? "도로명 주소와 상세 주소" : "체험만 문의하시면 비워 두셔도 돼요"}" autocomplete="street-address"></div>
+            <div class="field top"><label for="i-msg">문의 내용</label><textarea id="i-msg" maxlength="1000" rows="4" placeholder="${quote ? "체험 희망 날짜·인원, 궁금한 점을 적어 주세요" : "받고 싶은 날짜, 궁금한 점을 적어 주세요 (선택)"}"></textarea></div>
+            <input id="i-web" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+          </div>
+        </form>
+      </div>
+      <div class="sum"><div class="box">
+          <div class="r"><span>상품금액</span><span class="num">${won(t.goods)}원${quote ? " + 문의" : ""}</span></div>
+          ${needAddr ? `<div class="r"><span>배송비</span><span class="num">${t.ship ? "+" + won(t.ship) + "원" : "0원"}</span></div>` : ""}
+          <div class="r tot"><span>예상 금액</span><b class="num">${won(t.total)}원</b></div>
+          ${quote ? `<div class="hint">'가격 문의' 상품은 상담 후 금액을 안내해 드려요</div>` : ""}
+        </div>
+        <label class="chk agree-pay"><input type="checkbox" id="i-agree"><span>[필수] 구매 상담을 위한 <a href="privacy.html" target="_blank">개인정보 수집·이용</a>(이름, 휴대폰, 주소, 문의 내용 · 상담 완료 후 1년 보관)에 동의합니다.</span></label>
+        <button class="btn primary" id="inqBtn" style="flex:none">구매 문의 보내기</button>
+      </div>
+    </div></div>`;
+
+    $("#inqBtn").onclick = async () => {
+      const contact = { name: $("#i-name").value.trim(), tel: $("#i-tel").value.trim(), addr: $("#i-addr").value.trim(), message: $("#i-msg").value.trim() };
+      if (!contact.name) { $("#i-name").focus(); return toast("이름을 입력해 주세요"); }
+      if (!/^0\d{8,10}$/.test(contact.tel.replace(/\D/g, ""))) { $("#i-tel").focus(); return toast("휴대폰 번호를 확인해 주세요"); }
+      if (needAddr && !contact.addr) { $("#i-addr").focus(); return toast("배송받을 주소를 입력해 주세요"); }
+      if (!$("#i-agree").checked) return toast("개인정보 수집·이용에 동의해 주세요");
+      if (!API()) return toast("구매 문의 접수는 준비 중이에요");
+      const btn = $("#inqBtn"); btn.disabled = true;
+      try {
+        const { inquiry } = await api("/inquiry", { items: lines.map(l => ({ id: l.id, qty: l.qty })), contact, website: $("#i-web").value });
+        if (!fromBuyNow) { const done = new Set(lines.map(l => l.id)); cart = cart.filter(l => !done.has(l.id)); saveCart(); }
+        store.del("fg_buynow", sessionStorage);
+        if (!me) store.set("fg_ship", { name: contact.name, tel: contact.tel, addr: contact.addr });
+        document.title = `문의 접수 완료 | ${SITE.name}`;
+        view.innerHTML = `<div class="wrap"><div class="done">
+          <div class="ok"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>
+          <h2>구매 문의가 접수되었어요</h2>
+          <p style="color:var(--sub);margin:0">확인 후 <b class="num">${esc(contact.tel)}</b> 로 연락드릴게요.</p>
+          <dl>
+            <dt>문의번호</dt><dd class="num"><b>${esc(inquiry.inquiry_no)}</b></dd>
+            <dt>상품</dt><dd>${lines.map(l => `${esc(byId(l.id).name)} × ${l.qty}`).join("<br>")}</dd>
+            <dt>예상 금액</dt><dd class="num">${won(inquiry.total)}원${quote ? " + 문의 상품" : ""}</dd>
+          </dl>
+          <div class="d-actions">${me ? `<a class="btn ghost" href="mypage.html">문의 내역 보기</a>` : ""}<a class="btn primary" href="index.html">쇼핑 계속하기</a></div>
+        </div></div>`;
+        window.scrollTo({ top: 0 });
+      } catch (err) {
+        toast(err.message); btn.disabled = false;
+      }
     };
   }
 
@@ -603,6 +679,17 @@
     </article>`;
   }
 
+  const INQ_STATUS = { new: "새 문의", contacted: "연락함", done: "완료", cancelled: "취소" };
+  function inquiryCard(q, extra = "") {
+    return `<article class="ord">
+      <div class="ord-h"><span class="num">${fmtDate(q.created_at)}</span><span class="st st-q-${esc(q.status)}">${INQ_STATUS[q.status] || esc(q.status)}</span></div>
+      <div class="ord-no num">문의번호 ${esc(q.inquiry_no)}</div>
+      <ul class="ord-items">${(q.items || []).map(i => `<li><span>${esc(i.name)}</span><span class="num">${i.qty}개 · ${i.price ? won(i.price * i.qty) + "원" : "가격 문의"}</span></li>`).join("")}</ul>
+      <div class="ord-f"><span>예상 금액${q.has_quote ? " (문의 상품 제외)" : ""}</span><b class="num">${won(q.total)}원</b></div>
+      ${extra}
+    </article>`;
+  }
+
   /* ---------- 페이지: 로그인 · 회원가입 ---------- */
   function pageLogin(view) {
     document.title = `로그인 | ${SITE.name}`;
@@ -624,7 +711,7 @@
         ${!kakao && !naver ? `<p class="empty" style="padding-block:24px">회원 기능은 오픈 준비 중입니다.<br>비회원으로도 주문할 수 있어요.</p>` : ""}
       </div>
       ${kakao || naver ? `<p class="mode-note" style="text-align:center">처음 로그인하면 약관 동의 후 가입이 완료돼요. 프롬강화는 비밀번호를 저장하지 않아요.</p>` : ""}
-      <div class="auth-guest"><span>비회원으로 주문하셨나요?</span><a class="btn ghost" href="lookup.html">비회원 주문조회</a></div>
+      ${INQUIRY() ? "" : `<div class="auth-guest"><span>비회원으로 주문하셨나요?</span><a class="btn ghost" href="lookup.html">비회원 주문조회</a></div>`}
     </div></div>`;
     if (err) toast(`로그인하지 못했어요: ${err}`);
 
@@ -715,10 +802,19 @@
     document.title = `마이페이지 | ${SITE.name}`;
     if (!SB) { view.innerHTML = msgPage("회원 기능은 오픈 준비 중입니다."); return; }
     if (!isMember()) { location.replace("login.html?next=mypage.html"); return; }
-    const { data: orders, error } = await SB.from("orders").select("*").neq("status", "pending").order("created_at", { ascending: false }).limit(50);
+    const [{ data: orders, error }, { data: inqs }] = await Promise.all([
+      SB.from("orders").select("*").neq("status", "pending").order("created_at", { ascending: false }).limit(50),
+      SB.from("inquiries").select("*").order("created_at", { ascending: false }).limit(50)
+    ]);
+    const showOrders = !INQUIRY() || (orders && orders.length);
     view.innerHTML = `<div class="wrap"><div class="page-title"><h2>마이페이지</h2><p>${esc(PROFILE.name)}님, 반가워요</p></div><div class="two my">
-      <div class="box"><div class="box-h"><b>주문 내역</b><span class="num" style="color:var(--sub)">${orders ? orders.length : 0}건</span></div>
+      <div style="display:grid;gap:20px;min-width:0;align-content:start">
+      ${INQUIRY() || (inqs && inqs.length) ? `<div class="box"><div class="box-h"><b>구매 문의 내역</b><span class="num" style="color:var(--sub)">${inqs ? inqs.length : 0}건</span></div>
+        <div class="ord-list">${inqs && inqs.length ? inqs.map(q => inquiryCard(q)).join("") : `<p class="empty">아직 구매 문의 내역이 없어요.</p>`}</div>
+      </div>` : ""}
+      ${showOrders ? `<div class="box"><div class="box-h"><b>주문 내역</b><span class="num" style="color:var(--sub)">${orders ? orders.length : 0}건</span></div>
         <div class="ord-list">${error ? `<p class="empty">주문 내역을 불러오지 못했어요.</p>` : orders.length ? orders.map(o => orderCard(o)).join("") : `<p class="empty">아직 주문 내역이 없어요.</p>`}</div>
+      </div>` : ""}
       </div>
       <div class="sum">
         <form class="box" id="profForm" novalidate>
@@ -785,12 +881,15 @@
 
   /* ---------- 페이지: 관리자 주문 관리 ---------- */
   function pageAdmin(view) {
-    document.title = `주문 관리 | ${SITE.name}`;
+    document.title = `관리자 | ${SITE.name}`;
     if (!API() || !SB) { view.innerHTML = msgPage("서버(api)와 Supabase 설정 후 사용할 수 있어요."); return; }
     if (!USER) { location.replace("login.html?next=admin.html"); return; }
-    const tabs = { paid: "결제완료", preparing: "상품준비중", shipped: "배송중", delivered: "배송완료", cancelled: "취소", all: "전체" };
-    let status = "paid", rows = [];
-    const row = o => orderCard(o, `
+    const SECTIONS = {
+      inquiry: { name: "구매 문의", tabs: { new: "새 문의", contacted: "연락함", done: "완료", cancelled: "취소", all: "전체" }, first: "new" },
+      order: { name: "주문", tabs: { paid: "결제완료", preparing: "상품준비중", shipped: "배송중", delivered: "배송완료", cancelled: "취소", all: "전체" }, first: "paid" }
+    };
+    let section = INQUIRY() ? "inquiry" : "order", status = SECTIONS[section].first, rows = [];
+    const orderRow = o => orderCard(o, `
       <dl class="ord-ship">
         <dt>받는 분</dt><dd>${esc(o.ship.name)} · <span class="num">${esc(o.ship.tel)}</span></dd>
         <dt>주소</dt><dd>${esc(o.ship.addr)}</dd>
@@ -804,27 +903,52 @@
         <button class="btn primary" data-save>저장</button>
         <button class="btn ghost" data-cancel>결제 취소</button>
       </div>`}`);
+    const inqRow = q => inquiryCard(q, `
+      <dl class="ord-ship">
+        <dt>이름</dt><dd>${esc(q.name)}${q.user_id ? ` <span class="pill">회원</span>` : ""}</dd>
+        <dt>휴대폰</dt><dd><a class="num" href="tel:${esc(q.tel.replace(/[^\d]/g, ""))}" style="color:var(--brand);text-decoration:underline">${esc(q.tel)}</a></dd>
+        <dt>주소</dt><dd>${esc(q.addr || "-")}</dd>
+        <dt>문의 내용</dt><dd style="white-space:pre-wrap">${esc(q.message || "-")}</dd>
+      </dl>
+      <div class="adm-edit" data-inq="${esc(q.inquiry_no)}">
+        <select data-f="status">${Object.keys(INQ_STATUS).map(s => `<option value="${s}" ${q.status === s ? "selected" : ""}>${INQ_STATUS[s]}</option>`).join("")}</select>
+        <input data-f="memo" placeholder="관리자 메모 (고객에게 안 보여요)" value="${esc(q.admin_memo || "")}" maxlength="500">
+        <button class="btn primary" data-save>저장</button>
+      </div>`);
     const draw = () => {
-      view.innerHTML = `<div class="wrap"><div class="page-title"><h2>주문 관리</h2><p>관리자 전용 화면</p></div>
+      const sec = SECTIONS[section];
+      view.innerHTML = `<div class="wrap"><div class="page-title"><h2>관리자</h2><p>관리자 전용 화면</p></div>
+        <div class="adm-sec">${Object.entries(SECTIONS).map(([k, s]) => `<button data-sec="${k}" aria-pressed="${section === k}">${s.name}</button>`).join("")}</div>
         <div class="toolbar"><span class="num">총 ${rows.length}건</span>
-          <div class="sorts">${Object.entries(tabs).map(([k, v]) => `<button data-tab="${k}" aria-pressed="${status === k}">${v}</button>`).join("")}</div></div>
-        <div class="box ord-list adm">${rows.length ? rows.map(row).join("") : `<p class="empty">주문이 없어요.</p>`}</div>
+          <div class="sorts">${Object.entries(sec.tabs).map(([k, v]) => `<button data-tab="${k}" aria-pressed="${status === k}">${v}</button>`).join("")}</div></div>
+        <div class="box ord-list adm">${rows.length ? rows.map(section === "inquiry" ? inqRow : orderRow).join("") : `<p class="empty">${sec.name} 내역이 없어요.</p>`}</div>
         <div style="height:72px"></div></div>`;
     };
     const load = async () => {
-      view.innerHTML = `<p class="loading">주문을 불러오는 중…</p>`;
-      try { ({ orders: rows } = await api(`/admin/orders?status=${status}`, null, "GET")); draw(); }
-      catch (err) {
+      view.innerHTML = `<p class="loading">불러오는 중…</p>`;
+      try {
+        const d = await api(`/admin/${section === "inquiry" ? "inquiries" : "orders"}?status=${status}`, null, "GET");
+        rows = d.inquiries || d.orders || []; draw();
+      } catch (err) {
         view.innerHTML = msgPage(esc(err.message) + (/권한/.test(err.message)
           ? `<br><small>이 계정을 관리자로 쓰려면 Cloudflare 워커의 ADMIN_EMAILS 에<br><b class="num" style="color:var(--ink)">${esc(USER.email)}</b> 를 넣으세요.</small>` : ""));
       }
     };
     view.onclick = async e => {
+      const sec = e.target.closest("[data-sec]");
+      if (sec) { section = sec.dataset.sec; status = SECTIONS[section].first; return load(); }
       const tab = e.target.closest("[data-tab]");
       if (tab) { status = tab.dataset.tab; return load(); }
       const box = e.target.closest(".adm-edit"); if (!box) return;
-      const orderNo = box.dataset.no, f = k => $(`[data-f=${k}]`, box).value.trim();
+      const f = k => $(`[data-f=${k}]`, box).value.trim();
       try {
+        if (box.dataset.inq) {
+          if (!e.target.closest("[data-save]")) return;
+          await api("/admin/inquiry", { inquiryNo: box.dataset.inq, status: f("status"), memo: f("memo") });
+          toast("저장했어요"); load();
+          return;
+        }
+        const orderNo = box.dataset.no;
         if (e.target.closest("[data-save]")) {
           await api("/admin/order", { orderNo, status: f("status"), courier: f("courier"), trackingNo: f("tracking") });
           toast("저장했어요"); load();
@@ -867,6 +991,8 @@
       view.innerHTML = `<p class="empty">페이지를 불러오지 못했어요.<br><small>${esc(err.message)} — JSON 파일의 쉼표·따옴표를 확인해 주세요.</small></p>`;
       return;
     }
+    // 없어진 상품(판매 종료 등)이 브라우저 장바구니에 남아 있으면 정리
+    if (cart.some(l => !byId(l.id))) { cart = cart.filter(l => byId(l.id)); store.set("fg_cart", cart); }
     await initAuth();
     await syncCart();
     shell();

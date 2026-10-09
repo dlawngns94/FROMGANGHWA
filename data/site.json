@@ -26,11 +26,15 @@
   "categories": [
     { "id": "all", "name": "전체" },
     { "id": "farm", "name": "제철 농산물" },
-    { "id": "sea", "name": "수산·젓갈" },
-    { "id": "side", "name": "반찬·김치" },
+    { "id": "sea", "name": "수산·젓갈", "disabled": true },
+    { "id": "side", "name": "반찬·김치", "disabled": true },
     { "id": "own", "name": "자체브랜드" },
     { "id": "craft", "name": "이리저리 체험관" }
   ],
+
+  "checkout": {
+    "mode": "inquiry"
+  },
 
   "api": "https://fromganghwa-api.dlawngns94.workers.dev",
 

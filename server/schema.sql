@@ -84,3 +84,34 @@ create policy "본인 장바구니 수정" on public.carts for update to authent
 
 revoke all on public.carts from anon;
 grant select, insert, update on public.carts to authenticated;
+
+-- 구매 문의 (2026-10 추가, 결제 보류 중 사용) ----------------------------
+-- 고객이 남긴 구매 문의. 서버(worker)만 쓰고, 회원은 자기 문의만 볼 수 있습니다.
+create table if not exists public.inquiries (
+  inquiry_no  text primary key,
+  user_id     uuid references auth.users (id) on delete set null,
+  status      text not null default 'new' check (status in ('new', 'contacted', 'done', 'cancelled')),
+  items       jsonb not null,                -- [{ id, name, price, qty }]
+  goods       integer not null default 0,
+  ship_fee    integer not null default 0,
+  total       integer not null default 0,    -- 예상 금액 ('가격 문의' 상품 제외)
+  has_quote   boolean not null default false, -- '가격 문의' 상품 포함 여부
+  name        text not null,
+  tel         text not null,
+  addr        text,
+  message     text,
+  admin_memo  text,                           -- 관리자 메모 (고객에게 안 보임)
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists inquiries_status_idx on public.inquiries (status, created_at desc);
+create index if not exists inquiries_user_idx on public.inquiries (user_id, created_at desc);
+
+alter table public.inquiries enable row level security;
+
+drop policy if exists "본인 문의 조회" on public.inquiries;
+create policy "본인 문의 조회" on public.inquiries for select to authenticated using ((select auth.uid()) = user_id);
+
+revoke all on public.inquiries from anon;
+revoke insert, update, delete on public.inquiries from authenticated;
+grant select on public.inquiries to authenticated;

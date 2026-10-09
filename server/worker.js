@@ -5,6 +5,7 @@
  * 이 파일 하나를 Cloudflare Workers 에 올리면 그 역할을 합니다. (README 4장 참고)
  *
  * 경로
+ *  POST /inquiry             구매 문의 저장 (결제 보류 중일 때 사용)
  *  POST /checkout            주문서 저장 (금액은 서버가 products.json 으로 다시 계산)
  *  POST /naverpay/approve    네이버페이 결제 승인
  *  POST /kakaopay/ready      카카오페이 결제창 준비
@@ -14,6 +15,8 @@
  *  POST /auth/naver          네이버 로그인 → Supabase 로그인 토큰 발급
  *  POST /auth/kakao          카카오 로그인 → Supabase 로그인 토큰 발급
  *  POST /me/withdraw         회원 탈퇴
+ *  GET  /admin/inquiries     관리자: 구매 문의 목록
+ *  POST /admin/inquiry       관리자: 문의 상태·메모 저장
  *  GET  /admin/orders        관리자: 주문 목록
  *  POST /admin/order         관리자: 상태·운송장 저장
  *  POST /admin/cancel        관리자: 결제 전액 취소
@@ -88,6 +91,9 @@ const ROUTES = {
   "POST /auth/naver": naverLogin,
   "POST /auth/kakao": kakaoLogin,
   "POST /me/withdraw": withdraw,
+  "POST /inquiry": inquiry,
+  "GET /admin/inquiries": adminInquiries,
+  "POST /admin/inquiry": adminInquiryUpdate,
   "GET /admin/orders": adminOrders,
   "POST /admin/order": adminUpdate,
   "POST /admin/cancel": adminCancel,
@@ -125,6 +131,60 @@ async function checkout({ env, req, ctx, body, db }) {
   // 결제하지 않고 떠난 주문서는 하루 뒤 삭제
   ctx.waitUntil(db.remove(`orders?status=eq.pending&created_at=lt.${new Date(Date.now() - 864e5).toISOString()}`).catch(() => {}));
   return { order: publicOrder(order) };
+}
+
+/* ---------------- 구매 문의 (결제 보류 중) ----------------
+ * 고객이 상품과 연락처를 남기면 inquiries 표에 저장하고, 관리자 화면에서 보고 연락합니다. 결제는 일어나지 않습니다.
+ */
+const INQ_STATUS = ["new", "contacted", "done", "cancelled"];
+
+async function inquiry({ env, req, body, db }) {
+  if (body.website) return { inquiry: { inquiry_no: "IGNORED", total: 0 } };   // 자동 등록 봇 (숨김 칸을 채움)
+  const c = body.contact || {};
+  const name = String(c.name || "").trim().slice(0, 30);
+  const tel = String(c.tel || "").trim().slice(0, 13);
+  const addr = String(c.addr || "").trim().slice(0, 200);
+  const message = String(c.message || "").trim().slice(0, 1000);
+  if (!name) fail(400, "이름을 입력해 주세요");
+  if (!/^0\d{8,10}$/.test(digits(tel))) fail(400, "휴대폰 번호를 확인해 주세요");
+
+  const { products, site } = await catalog(env);
+  const a = calcAmount(body.items, products, site.shipping, 0);
+  const needAddr = a.lines.some(l => !(products.find(p => p.id === l.id) || {}).ticket);
+  if (needAddr && !addr) fail(400, "배송받을 주소를 입력해 주세요");
+  const user = await getUser(env, req, false);
+
+  const row = await db.insert("inquiries", {
+    inquiry_no: newOrderNo().replace(/^FG/, "Q"),
+    user_id: user ? user.id : null,
+    status: "new",
+    items: a.lines,
+    goods: a.goods, ship_fee: a.ship, total: a.total,
+    has_quote: a.lines.some(l => !l.price),
+    name, tel, addr: addr || null, message: message || null,
+  });
+  // TODO: 새 문의 알림 (예: 텔레그램 봇, 카카오 알림톡) 을 여기에 붙이세요
+  console.log("INQUIRY", row.inquiry_no, a.lines.map(l => `${l.name}x${l.qty}`).join(", "));
+  return { inquiry: { inquiry_no: row.inquiry_no, created_at: row.created_at, total: row.total } };
+}
+
+async function adminInquiries({ env, req, url, db }) {
+  await requireAdmin(env, req);
+  const st = url.searchParams.get("status") || "new";
+  const filter = st === "all" ? "" : INQ_STATUS.includes(st) ? `status=eq.${st}&` : fail(400, "잘못된 상태");
+  const inquiries = await db.select(`inquiries?${filter}select=*&order=created_at.desc&limit=300`);
+  return { inquiries };
+}
+
+async function adminInquiryUpdate({ env, req, body, db }) {
+  await requireAdmin(env, req);
+  if (!INQ_STATUS.includes(body.status)) fail(400, "잘못된 상태");
+  const [u] = await db.update(`inquiries?inquiry_no=eq.${enc(body.inquiryNo || "")}`, {
+    status: body.status,
+    admin_memo: String(body.memo || "").slice(0, 500) || null,
+  });
+  if (!u) fail(404, "문의를 찾을 수 없어요");
+  return { inquiry: u };
 }
 
 /* ---------------- 네이버페이 ---------------- */
