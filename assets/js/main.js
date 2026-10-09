@@ -305,9 +305,20 @@
     document.title = `${p.name} | ${SITE.name}`;
     const cat = SITE.categories.find(c => c.id === p.cat) || SITE.categories[0];
     let qty = 1;
+    const TABS = [["story", "상품설명"], ["info", "상세정보"], ["review", "후기"], ["qna", "문의"]];
+    view.innerHTML = `<div class="wrap"><div id="pTop"></div></div>
+      <div class="ptabs-wrap"><nav class="ptabs wrap" aria-label="상품 정보">${TABS.map(([k, v], i) =>
+        `<a href="#tab-${k}" data-ptab="${k}" aria-current="${i === 0}">${v}<span class="num" id="cnt-${k}"></span></a>`).join("")}</nav></div>
+      <div class="wrap ptab-body">
+        <section id="tab-story" class="psec">${storyHtml(p)}</section>
+        <section id="tab-info" class="psec"><h3 class="psec-h">상세정보</h3>${infoHtml(p)}</section>
+        <section id="tab-review" class="psec"><h3 class="psec-h">상품 후기</h3><div id="revBox"><p class="loading" style="padding-block:40px">불러오는 중…</p></div></section>
+        <section id="tab-qna" class="psec"><h3 class="psec-h">상품 문의</h3><div id="qnaBox"><p class="loading" style="padding-block:40px">불러오는 중…</p></div></section>
+      </div>`;
+    const top = $("#pTop");
     const draw = () => {
       const r = rate(p);
-      view.innerHTML = `<div class="wrap">
+      top.innerHTML = `
         <nav class="crumbs"><a href="index.html">홈</a>›<a href="shop.html?cat=${p.cat}">${esc(cat.name)}</a></nav>
         <div class="detail">
           <div class="thumb">${visual(p)}${p.flag ? `<span class="flag">${esc(p.flag)}</span>` : ""}</div>
@@ -329,17 +340,158 @@
               <button class="btn ghost" data-addqty>장바구니 담기</button>
               <button class="btn primary" data-buynow>${INQUIRY() ? "구매 문의" : "바로 구매"}</button>
             </div>
-            ${p.detail ? `<p class="detail-text">${esc(p.detail)}</p>` : ""}
           </div>
-        </div></div>`;
+        </div>`;
     };
-    view.addEventListener("click", e => {
+    top.addEventListener("click", e => {
       const t = e.target.closest("button"); if (!t) return;
       if (t.dataset.q) { qty = Math.max(1, Math.min(99, qty + +t.dataset.q)); draw(); }
       if ("addqty" in t.dataset) addToCart(p.id, qty);
       if ("buynow" in t.dataset) { store.set("fg_buynow", [{ id: p.id, qty }], sessionStorage); location.href = "order.html?from=buynow"; }
     });
     draw();
+
+    // 탭: 헤더 바로 아래에 붙고, 스크롤 위치에 따라 현재 탭 표시
+    const setHH = () => document.documentElement.style.setProperty("--hh", ($("header.site") ? $("header.site").offsetHeight : 0) + "px");
+    setHH(); addEventListener("resize", setHH);
+    const tabs = [...view.querySelectorAll("[data-ptab]")];
+    let ticking = false;
+    addEventListener("scroll", () => {
+      if (ticking) return; ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        const line = (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--hh")) || 0) + 80;
+        let cur = TABS[0][0];
+        for (const [k] of TABS) { const s = $("#tab-" + k); if (s && s.getBoundingClientRect().top <= line) cur = k; }
+        tabs.forEach(a => a.setAttribute("aria-current", a.dataset.ptab === cur));
+      });
+    }, { passive: true });
+
+    const next = encodeURIComponent(`product.html?id=${p.id}`);
+    const loginPrompt = what => `<div class="pnote">${what}는 회원만 쓸 수 있어요. <a href="login.html?next=${next}">카카오로 로그인하기 ›</a></div>`;
+    const stars = n => `<span class="stars" aria-label="5점 만점에 ${n}점">${"★".repeat(n)}<span>${"★".repeat(5 - n)}</span></span>`;
+
+    /* 후기 */
+    const revBox = $("#revBox");
+    async function loadReviews() {
+      if (!SB) { revBox.innerHTML = `<p class="empty" style="padding-block:40px">후기 기능은 준비 중이에요.</p>`; return; }
+      const { data, error } = await SB.from("reviews").select("id,user_id,name,rating,content,hidden,created_at").eq("product_id", p.id).order("created_at", { ascending: false }).limit(200);
+      if (error) { revBox.innerHTML = `<p class="empty" style="padding-block:40px">후기를 불러오지 못했어요.</p>`; return; }
+      const shown = data.filter(r => !r.hidden);
+      const mine = USER && data.find(r => r.user_id === USER.id);
+      const avg = shown.length ? shown.reduce((s, r) => s + r.rating, 0) / shown.length : 0;
+      $("#cnt-review").textContent = shown.length ? ` (${shown.length})` : "";
+      revBox.innerHTML = `
+        <div class="rev-sum">
+          <div class="rev-avg"><b class="num">${shown.length ? avg.toFixed(1) : "-"}</b>${stars(Math.round(avg))}<span class="num">${shown.length}개 후기</span></div>
+          <div class="rev-bars">${[5, 4, 3, 2, 1].map(n => { const c = shown.filter(r => r.rating === n).length; return `<div><span>${n}점</span><i><em style="width:${shown.length ? c / shown.length * 100 : 0}%"></em></i><span class="num">${c}</span></div>`; }).join("")}</div>
+        </div>
+        ${!isMember() ? loginPrompt("후기") : mine ? `<div class="pnote">이 상품에 후기를 남기셨어요. 감사합니다!</div>` : `
+          <form class="pform" id="revForm" novalidate>
+            <div class="star-pick" role="radiogroup" aria-label="별점">${[1, 2, 3, 4, 5].map(n => `<label><input type="radio" name="rating" value="${n}" ${n === 5 ? "checked" : ""}><span aria-hidden="true">★</span><span class="sr">${n}점</span></label>`).join("")}</div>
+            <textarea id="revText" maxlength="1000" rows="3" placeholder="상품은 어떠셨나요? 맛, 품질, 체험 소감을 10자 이상 남겨 주세요"></textarea>
+            <div class="pform-f"><span class="mode-note">작성자 이름은 가려서(예: 조*인) 보여요.</span><button class="btn primary">후기 등록</button></div>
+          </form>`}
+        <div class="plist">${data.length ? data.map(r => `
+          <article class="pitem">
+            <div class="pitem-h">${stars(r.rating)}<span>${esc(r.name || "회원")}</span><span class="num">${fmtDate(r.created_at).slice(0, 12)}</span>
+              ${USER && r.user_id === USER.id ? `<button class="plink" data-del-rev="${r.id}">삭제</button>` : ""}</div>
+            ${r.hidden ? `<p class="mode-note">관리자가 숨긴 후기예요. 다른 고객에게는 보이지 않아요.</p>` : ""}
+            <p class="pitem-b">${esc(r.content)}</p>
+          </article>`).join("") : `<p class="empty" style="padding-block:40px">아직 후기가 없어요. 첫 후기를 남겨 주세요!</p>`}</div>`;
+      const f = $("#revForm");
+      if (f) f.onsubmit = async e => {
+        e.preventDefault();
+        const content = $("#revText").value.trim(), rating = +$("[name=rating]:checked", f).value;
+        if (content.length < 10) return toast("후기를 10자 이상 적어 주세요");
+        const { error: er } = await SB.from("reviews").insert({ product_id: p.id, rating, content });
+        if (er) return toast(er.code === "23505" ? "이미 후기를 남기셨어요" : `후기를 등록하지 못했어요: ${er.message}`);
+        toast("후기를 등록했어요. 감사합니다!"); loadReviews();
+      };
+    }
+    revBox.addEventListener("click", async e => {
+      const b = e.target.closest("[data-del-rev]"); if (!b || !confirm("후기를 삭제할까요?")) return;
+      const { error } = await SB.from("reviews").delete().eq("id", b.dataset.delRev);
+      if (error) return toast(`삭제하지 못했어요: ${error.message}`);
+      toast("후기를 삭제했어요"); loadReviews();
+    });
+
+    /* 상품 문의 */
+    const qnaBox = $("#qnaBox");
+    async function loadQna() {
+      if (!SB) { qnaBox.innerHTML = `<p class="empty" style="padding-block:40px">상품 문의 기능은 준비 중이에요.</p>`; return; }
+      const { data, error } = await SB.from("questions").select("id,user_id,name,question,is_secret,answer,answered_at,created_at").eq("product_id", p.id).order("created_at", { ascending: false }).limit(200);
+      if (error) { qnaBox.innerHTML = `<p class="empty" style="padding-block:40px">문의를 불러오지 못했어요.</p>`; return; }
+      $("#cnt-qna").textContent = data.length ? ` (${data.length})` : "";
+      qnaBox.innerHTML = `
+        <p class="mode-note" style="margin:0 0 14px">상품에 대해 궁금한 점을 남겨 주시면 답변해 드려요. 구매·체험 예약은 <b>구매 문의</b>로 남겨 주시면 더 빨리 연락드려요.</p>
+        ${!isMember() ? loginPrompt("상품 문의") : `
+          <form class="pform" id="qnaForm" novalidate>
+            <textarea id="qnaText" maxlength="1000" rows="3" placeholder="궁금한 점을 적어 주세요 (5자 이상)"></textarea>
+            <div class="pform-f"><label class="chk"><input type="checkbox" id="qnaSecret">비밀글 (나와 관리자만 보기)</label><button class="btn primary">문의 등록</button></div>
+          </form>`}
+        <div class="plist">${data.length ? data.map(q => `
+          <article class="pitem">
+            <div class="pitem-h"><span class="st ${q.answer ? "" : "st-q-new"}">${q.answer ? "답변완료" : "답변대기"}</span>${q.is_secret ? `<span class="pill">비밀글</span>` : ""}<span>${esc(q.name || "회원")}</span><span class="num">${fmtDate(q.created_at).slice(0, 12)}</span>
+              ${USER && q.user_id === USER.id && !q.answer ? `<button class="plink" data-del-q="${q.id}">삭제</button>` : ""}</div>
+            <p class="pitem-b"><b class="qa">Q</b>${esc(q.question)}</p>
+            ${q.answer ? `<div class="pans"><b class="qa">A</b><div><p>${esc(q.answer)}</p><span class="mode-note num">${esc(SITE.name)} · ${fmtDate(q.answered_at).slice(0, 12)}</span></div></div>` : ""}
+          </article>`).join("") : `<p class="empty" style="padding-block:40px">아직 문의가 없어요.</p>`}</div>`;
+      const f = $("#qnaForm");
+      if (f) f.onsubmit = async e => {
+        e.preventDefault();
+        const question = $("#qnaText").value.trim();
+        if (question.length < 5) return toast("문의 내용을 5자 이상 적어 주세요");
+        const { error: er } = await SB.from("questions").insert({ product_id: p.id, question, is_secret: $("#qnaSecret").checked });
+        if (er) return toast(`문의를 등록하지 못했어요: ${er.message}`);
+        toast("문의를 등록했어요. 답변을 기다려 주세요!"); loadQna();
+      };
+    }
+    qnaBox.addEventListener("click", async e => {
+      const b = e.target.closest("[data-del-q]"); if (!b || !confirm("문의를 삭제할까요?")) return;
+      const { error } = await SB.from("questions").delete().eq("id", b.dataset.delQ);
+      if (error) return toast(`삭제하지 못했어요: ${error.message}`);
+      toast("문의를 삭제했어요"); loadQna();
+    });
+    Promise.all([loadReviews(), loadQna()]).then(() => {
+      // product.html?id=…#tab-review 처럼 들어오면 내용이 그려진 뒤 그 탭으로 이동
+      const s = /^#tab-\w+$/.test(location.hash) && $(location.hash);
+      if (s) s.scrollIntoView();
+    });
+  }
+
+  /* 상품설명 — products.json 의 story */
+  function storyHtml(p) {
+    const blocks = p.story || (p.detail ? [{ title: p.sub, text: p.detail }] : []);
+    const [bg, fg] = p.tile || ["#f4f5f3", "#1f2119"];
+    return `<div class="story">
+      <figure class="story-hero">${p.image
+        ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">`
+        : `<div class="story-tile" style="background:${esc(bg)};color:${esc(fg)}"><span>${esc(SITE.nameEn)}</span><b>${esc(p.name)}</b></div>`}
+        <figcaption><span>${esc(SITE.nameEn)}</span><h3>${esc(p.name)}</h3><p>${esc(p.sub)}</p></figcaption></figure>
+      ${blocks.map((b, i) => `<div class="story-b">
+        <span class="story-no num">${String(i + 1).padStart(2, "0")}</span>
+        <h4>${esc(b.title)}</h4><p>${esc(b.text)}</p>
+        ${b.list ? `<ul>${b.list.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+      </div>`).join("")}
+    </div>`;
+  }
+
+  /* 상세정보 — 상품정보 제공고시 + 배송·교환 안내 */
+  function infoHtml(p) {
+    const c = SITE.company;
+    const rows = p.ticket
+      ? [["체험명", p.name], ["운영", `${c.corpName} · 이리저리 체험관`], ...(p.info || [])]
+      : [["품목 또는 명칭", p.name], ["포장단위별 용량(중량) · 수량", p.unit], ["원산지", p.origin], ["포장타입", p.pack], ["판매자", c.corpName], ...(p.info || [])];
+    rows.push(["소비자상담 관련 전화번호", `${SITE.cs.tel} · ${c.email}`]);
+    const guide = p.ticket
+      ? [["예약 · 변경", "구매 문의로 희망 날짜·인원을 남겨 주시면 연락드려 일정을 확정해요."], ["취소 · 환불", "예약 확정 후 취소·환불 기준은 상담 시 안내해 드려요."]]
+      : [["배송", `산지직송 · ${SITE.shipping.cutoff} · ${won(SITE.shipping.freeOver)}원 이상 무료배송 (미만 시 ${won(SITE.shipping.fee)}원)`],
+         ["교환 · 반품", "상품이 표시·광고와 다르거나 파손·변질된 경우 받으신 날부터 3개월, 그 사실을 안 날부터 30일 안에 교환·환불해 드려요. 사진과 함께 고객센터로 연락해 주세요."],
+         ["단순 변심", "농산물은 신선식품이라 받으신 뒤 가치가 떨어지기 쉬워, 단순 변심에 의한 반품은 어려울 수 있어요."]];
+    const table = (title, list) => `<h4 class="info-h">${title}</h4><table class="info-t">${list.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</table>`;
+    return table(p.ticket ? "체험 정보" : "상품정보 제공고시", rows) + table(p.ticket ? "예약 · 취소 안내" : "배송 · 교환 · 반품 안내", guide)
+      + `<p class="mode-note" style="margin-top:10px">자세한 기준은 <a href="terms.html" style="text-decoration:underline">이용약관</a>을 확인해 주세요.</p>`;
   }
 
   /* ---------- 장바구니 · 주문 공통 ---------- */
@@ -887,8 +1039,10 @@
     if (!API() || !SB) { view.innerHTML = msgPage("서버(api)와 Supabase 설정 후 사용할 수 있어요."); return; }
     if (!USER) { location.replace("login.html?next=admin.html"); return; }
     const SECTIONS = {
-      inquiry: { name: "구매 문의", tabs: { new: "새 문의", contacted: "연락함", done: "완료", cancelled: "취소", all: "전체" }, first: "new" },
-      order: { name: "주문", tabs: { paid: "결제완료", preparing: "상품준비중", shipped: "배송중", delivered: "배송완료", cancelled: "취소", all: "전체" }, first: "paid" }
+      inquiry: { name: "구매 문의", tabs: { new: "새 문의", contacted: "연락함", done: "완료", cancelled: "취소", all: "전체" }, first: "new", api: "inquiries" },
+      review: { name: "상품 후기", tabs: { all: "전체", shown: "공개", hidden: "숨김" }, first: "all", api: "reviews" },
+      question: { name: "상품 문의", tabs: { open: "답변대기", answered: "답변완료", all: "전체" }, first: "open", api: "questions" },
+      order: { name: "주문", tabs: { paid: "결제완료", preparing: "상품준비중", shipped: "배송중", delivered: "배송완료", cancelled: "취소", all: "전체" }, first: "paid", api: "orders" }
     };
     let section = INQUIRY() ? "inquiry" : "order", status = SECTIONS[section].first, rows = [];
     const orderRow = o => orderCard(o, `
@@ -917,20 +1071,37 @@
         <input data-f="memo" placeholder="관리자 메모 (고객에게 안 보여요)" value="${esc(q.admin_memo || "")}" maxlength="500">
         <button class="btn primary" data-save>저장</button>
       </div>`);
+    const pname = id => (byId(id) || { name: id }).name;
+    const revRow = r => `<article class="ord">
+      <div class="ord-h"><span class="num">${fmtDate(r.created_at)}</span><span class="st ${r.hidden ? "st-cancelled" : ""}">${r.hidden ? "숨김" : "공개"}</span></div>
+      <div><a href="product.html?id=${esc(r.product_id)}#tab-review" style="font-weight:700">${esc(pname(r.product_id))}</a></div>
+      <div class="pitem-h"><span class="stars">${"★".repeat(r.rating)}<span>${"★".repeat(5 - r.rating)}</span></span><span>${esc(r.name || "회원")}</span></div>
+      <p class="pitem-b" style="margin:0">${esc(r.content)}</p>
+      <div class="adm-edit"><button class="btn ghost" data-rev="${r.id}" data-hide="${r.hidden ? "0" : "1"}">${r.hidden ? "다시 보이기" : "숨기기"}</button></div>
+    </article>`;
+    const qRow = q => `<article class="ord">
+      <div class="ord-h"><span class="num">${fmtDate(q.created_at)}</span><span class="st ${q.answer ? "" : "st-q-new"}">${q.answer ? "답변완료" : "답변대기"}</span></div>
+      <div><a href="product.html?id=${esc(q.product_id)}#tab-qna" style="font-weight:700">${esc(pname(q.product_id))}</a> ${q.is_secret ? `<span class="pill">비밀글</span>` : ""}</div>
+      <p class="pitem-b" style="margin:0"><b class="qa">Q</b>${esc(q.question)} <span class="mode-note">— ${esc(q.name || "회원")}</span></p>
+      <div class="adm-edit" style="display:grid;grid-template-columns:1fr auto;align-items:start">
+        <textarea data-ans-text="${q.id}" rows="3" maxlength="2000" placeholder="답변을 적어 주세요 (고객에게 공개돼요)" style="border:1px solid var(--line);border-radius:4px;padding:8px 10px;resize:vertical;line-height:1.6">${esc(q.answer || "")}</textarea>
+        <button class="btn primary" data-ans="${q.id}">답변 저장</button>
+      </div>
+    </article>`;
     const draw = () => {
       const sec = SECTIONS[section];
       view.innerHTML = `<div class="wrap"><div class="page-title"><h2>관리자</h2><p>관리자 전용 화면</p></div>
         <div class="adm-sec">${Object.entries(SECTIONS).map(([k, s]) => `<button data-sec="${k}" aria-pressed="${section === k}">${s.name}</button>`).join("")}</div>
         <div class="toolbar"><span class="num">총 ${rows.length}건</span>
           <div class="sorts">${Object.entries(sec.tabs).map(([k, v]) => `<button data-tab="${k}" aria-pressed="${status === k}">${v}</button>`).join("")}</div></div>
-        <div class="box ord-list adm">${rows.length ? rows.map(section === "inquiry" ? inqRow : orderRow).join("") : `<p class="empty">${sec.name} 내역이 없어요.</p>`}</div>
+        <div class="box ord-list adm">${rows.length ? rows.map({ inquiry: inqRow, order: orderRow, review: revRow, question: qRow }[section]).join("") : `<p class="empty">${sec.name} 내역이 없어요.</p>`}</div>
         <div style="height:72px"></div></div>`;
     };
     const load = async () => {
       view.innerHTML = `<p class="loading">불러오는 중…</p>`;
       try {
-        const d = await api(`/admin/${section === "inquiry" ? "inquiries" : "orders"}?status=${status}`, null, "GET");
-        rows = d.inquiries || d.orders || []; draw();
+        const d = await api(`/admin/${SECTIONS[section].api}?status=${status}`, null, "GET");
+        rows = d[SECTIONS[section].api] || []; draw();
       } catch (err) {
         view.innerHTML = msgPage(esc(err.message) + (/권한/.test(err.message)
           ? `<br><small>이 계정을 관리자로 쓰려면 Cloudflare 워커의 ADMIN_EMAILS 에<br><b class="num" style="color:var(--ink)">${esc(USER.email)}</b> 를 넣으세요.</small>` : ""));
@@ -941,7 +1112,12 @@
       if (sec) { section = sec.dataset.sec; status = SECTIONS[section].first; return load(); }
       const tab = e.target.closest("[data-tab]");
       if (tab) { status = tab.dataset.tab; return load(); }
-      const box = e.target.closest(".adm-edit"); if (!box) return;
+      const rv = e.target.closest("[data-rev]"), an = e.target.closest("[data-ans]");
+      try {
+        if (rv) { await api("/admin/review", { id: +rv.dataset.rev, hidden: rv.dataset.hide === "1" }); toast(rv.dataset.hide === "1" ? "후기를 숨겼어요" : "후기를 다시 보이게 했어요"); return load(); }
+        if (an) { await api("/admin/question", { id: +an.dataset.ans, answer: $(`[data-ans-text="${an.dataset.ans}"]`, view).value }); toast("답변을 저장했어요"); return load(); }
+      } catch (err) { return toast(err.message); }
+      const box = e.target.closest(".adm-edit"); if (!box || !box.dataset.inq && !box.dataset.no) return;
       const f = k => $(`[data-f=${k}]`, box).value.trim();
       try {
         if (box.dataset.inq) {

@@ -17,6 +17,10 @@
  *  POST /me/withdraw         회원 탈퇴
  *  GET  /admin/inquiries     관리자: 구매 문의 목록
  *  POST /admin/inquiry       관리자: 문의 상태·메모 저장
+ *  GET  /admin/reviews       관리자: 상품 후기 목록
+ *  POST /admin/review        관리자: 후기 숨김/보이기
+ *  GET  /admin/questions     관리자: 상품 문의 목록
+ *  POST /admin/question      관리자: 상품 문의 답변
  *  GET  /admin/orders        관리자: 주문 목록
  *  POST /admin/order         관리자: 상태·운송장 저장
  *  POST /admin/cancel        관리자: 결제 전액 취소
@@ -94,6 +98,10 @@ const ROUTES = {
   "POST /inquiry": inquiry,
   "GET /admin/inquiries": adminInquiries,
   "POST /admin/inquiry": adminInquiryUpdate,
+  "GET /admin/reviews": adminReviews,
+  "POST /admin/review": adminReviewUpdate,
+  "GET /admin/questions": adminQuestions,
+  "POST /admin/question": adminAnswer,
   "GET /admin/orders": adminOrders,
   "POST /admin/order": adminUpdate,
   "POST /admin/cancel": adminCancel,
@@ -185,6 +193,38 @@ async function adminInquiryUpdate({ env, req, body, db }) {
   });
   if (!u) fail(404, "문의를 찾을 수 없어요");
   return { inquiry: u };
+}
+
+/* ---------------- 상품 후기 · 상품 문의 (관리자) ----------------
+ * 고객은 Supabase 에 직접 쓰고(RLS 로 본인 것만), 관리자는 여기서 후기 숨김·문의 답변을 합니다.
+ */
+async function adminReviews({ env, req, url, db }) {
+  await requireAdmin(env, req);
+  const st = url.searchParams.get("status") || "all";
+  const filter = st === "hidden" ? "hidden=eq.true&" : st === "shown" ? "hidden=eq.false&" : st === "all" ? "" : fail(400, "잘못된 상태");
+  return { reviews: await db.select(`reviews?${filter}select=*&order=created_at.desc&limit=300`) };
+}
+
+async function adminReviewUpdate({ env, req, body, db }) {
+  await requireAdmin(env, req);
+  const [u] = await db.update(`reviews?id=eq.${Number(body.id) || 0}`, { hidden: !!body.hidden });
+  if (!u) fail(404, "후기를 찾을 수 없어요");
+  return { review: u };
+}
+
+async function adminQuestions({ env, req, url, db }) {
+  await requireAdmin(env, req);
+  const st = url.searchParams.get("status") || "open";
+  const filter = st === "open" ? "answer=is.null&" : st === "answered" ? "answer=not.is.null&" : st === "all" ? "" : fail(400, "잘못된 상태");
+  return { questions: await db.select(`questions?${filter}select=*&order=created_at.desc&limit=300`) };
+}
+
+async function adminAnswer({ env, req, body, db }) {
+  await requireAdmin(env, req);
+  const answer = String(body.answer || "").trim().slice(0, 2000);
+  const [u] = await db.update(`questions?id=eq.${Number(body.id) || 0}`, answer ? { answer, answered_at: now() } : { answer: null, answered_at: null });
+  if (!u) fail(404, "문의를 찾을 수 없어요");
+  return { question: u };
 }
 
 /* ---------------- 네이버페이 ---------------- */

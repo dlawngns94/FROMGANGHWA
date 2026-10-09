@@ -115,3 +115,94 @@ create policy "본인 문의 조회" on public.inquiries for select to authentic
 revoke all on public.inquiries from anon;
 revoke insert, update, delete on public.inquiries from authenticated;
 grant select on public.inquiries to authenticated;
+
+-- 상품 후기 · 상품 문의 (2026-10 추가) ------------------------------------
+-- 누구나 볼 수 있고, 가입을 마친 회원만 쓸 수 있습니다. 작성자 이름은 서버가 가려서(조*인) 저장합니다.
+-- 관리자는 admin.html 에서 후기를 숨기거나, 문의에 답변합니다 (서버 경유).
+
+create or replace function public.mask_name(n text) returns text
+language sql immutable as $$
+  select case
+    when n is null or btrim(n) = '' then '회원'
+    when char_length(n) <= 2 then left(n, 1) || '*'
+    else left(n, 1) || repeat('*', char_length(n) - 2) || right(n, 1)
+  end
+$$;
+
+create table if not exists public.reviews (
+  id          bigint generated always as identity primary key,
+  product_id  text not null,
+  user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  name        text,
+  rating      smallint not null check (rating between 1 and 5),
+  content     text not null check (char_length(content) between 10 and 1000),
+  hidden      boolean not null default false,   -- 관리자가 숨긴 후기
+  created_at  timestamptz not null default now(),
+  unique (product_id, user_id)                  -- 상품마다 한 사람 한 개
+);
+create index if not exists reviews_product_idx on public.reviews (product_id, created_at desc);
+
+create table if not exists public.questions (
+  id           bigint generated always as identity primary key,
+  product_id   text not null,
+  user_id      uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  name         text,
+  question     text not null check (char_length(question) between 5 and 1000),
+  is_secret    boolean not null default false,  -- 비밀글: 작성자 본인만 보임
+  answer       text,
+  answered_at  timestamptz,
+  created_at   timestamptz not null default now()
+);
+create index if not exists questions_product_idx on public.questions (product_id, created_at desc);
+
+-- 쓰는 사람이 이름·작성자·숨김·답변을 마음대로 넣지 못하게 서버 쪽에서 채움
+create or replace function public.fill_review_author() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  new.user_id := auth.uid();
+  new.name := public.mask_name((select p.name from public.profiles p where p.id = auth.uid()));
+  new.hidden := false;
+  new.created_at := now();
+  return new;
+end $$;
+
+create or replace function public.fill_question_author() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  new.user_id := auth.uid();
+  new.name := public.mask_name((select p.name from public.profiles p where p.id = auth.uid()));
+  new.answer := null;
+  new.answered_at := null;
+  new.created_at := now();
+  return new;
+end $$;
+
+drop trigger if exists reviews_author on public.reviews;
+create trigger reviews_author before insert on public.reviews for each row execute function public.fill_review_author();
+drop trigger if exists questions_author on public.questions;
+create trigger questions_author before insert on public.questions for each row execute function public.fill_question_author();
+
+alter table public.reviews enable row level security;
+alter table public.questions enable row level security;
+
+drop policy if exists "후기 보기" on public.reviews;
+drop policy if exists "후기 쓰기" on public.reviews;
+drop policy if exists "내 후기 삭제" on public.reviews;
+create policy "후기 보기" on public.reviews for select to anon, authenticated using (not hidden or user_id = (select auth.uid()));
+create policy "후기 쓰기" on public.reviews for insert to authenticated
+  with check (user_id = (select auth.uid()) and exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.agreed_at is not null));
+create policy "내 후기 삭제" on public.reviews for delete to authenticated using (user_id = (select auth.uid()));
+
+drop policy if exists "문의 보기" on public.questions;
+drop policy if exists "문의 쓰기" on public.questions;
+drop policy if exists "내 문의 삭제" on public.questions;
+create policy "문의 보기" on public.questions for select to anon, authenticated using (not is_secret or user_id = (select auth.uid()));
+create policy "문의 쓰기" on public.questions for insert to authenticated
+  with check (user_id = (select auth.uid()) and exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.agreed_at is not null));
+create policy "내 문의 삭제" on public.questions for delete to authenticated using (user_id = (select auth.uid()) and answer is null);
+
+revoke all on public.reviews, public.questions from anon, authenticated;
+grant select on public.reviews, public.questions to anon, authenticated;
+grant insert (product_id, rating, content) on public.reviews to authenticated;
+grant insert (product_id, question, is_secret) on public.questions to authenticated;
+grant delete on public.reviews, public.questions to authenticated;
