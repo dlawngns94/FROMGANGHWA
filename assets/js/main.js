@@ -700,10 +700,10 @@
     if (isMember()) { store.del("fg_next", sessionStorage); location.replace(next); return; }
 
     const L = SITE.login || {};
-    const kakao = !!(SB && API() && L.kakao && L.kakaoRestKey), naver = !!(SB && API() && L.naverClientId);
+    const kakao = !!(SB && API() && L.kakao && L.kakaoRestKey), naver = !!(SB && API() && L.naver !== false && L.naverClientId);  // 네이버 로그인: 검수 전까지 site.json 의 login.naver=false 로 꺼 둠
     const perk = Number(SITE.member && SITE.member.firstOrderDiscount) || 0;
     view.innerHTML = `<div class="wrap"><div class="auth">
-      <div class="page-title"><h2>로그인 · 회원가입</h2><p>카카오·네이버 계정으로 바로 가입하고 로그인해요</p></div>
+      <div class="page-title"><h2>로그인 · 회원가입</h2><p>${[kakao && "카카오", naver && "네이버"].filter(Boolean).join("·") || "소셜"} 계정으로 바로 가입하고 로그인해요</p></div>
       ${perk && !INQUIRY() && (kakao || naver) ? `<p class="auth-perk">지금 가입하면 <b>첫 주문 ${perk}% 할인</b></p>` : ""}
       <div class="auth-btns">
         ${kakao ? `<button class="btn kakao" data-login="kakao">${PAYS.kakaopay.mark}카카오로 시작하기</button>` : ""}
@@ -711,7 +711,9 @@
         ${!kakao && !naver ? `<p class="empty" style="padding-block:24px">회원 기능은 오픈 준비 중입니다.<br>비회원으로도 주문할 수 있어요.</p>` : ""}
       </div>
       ${kakao || naver ? `<p class="mode-note" style="text-align:center">처음 로그인하면 약관 동의 후 가입이 완료돼요. 프롬강화는 비밀번호를 저장하지 않아요.</p>` : ""}
-      ${INQUIRY() ? "" : `<div class="auth-guest"><span>비회원으로 주문하셨나요?</span><a class="btn ghost" href="lookup.html">비회원 주문조회</a></div>`}
+      ${INQUIRY()
+        ? `<div class="auth-guest"><span>회원가입 없이도 구매 문의를 남길 수 있어요</span><a class="btn ghost" href="shop.html">상품 보러 가기</a></div>`
+        : `<div class="auth-guest"><span>비회원으로 주문하셨나요?</span><a class="btn ghost" href="lookup.html">비회원 주문조회</a></div>`}
     </div></div>`;
     if (err) toast(`로그인하지 못했어요: ${err}`);
 
