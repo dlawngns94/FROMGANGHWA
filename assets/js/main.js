@@ -865,10 +865,13 @@
     if (isMember()) { store.del("fg_next", sessionStorage); location.replace(next); return; }
 
     const L = SITE.login || {};
-    const kakao = !!(SB && API() && L.kakao && L.kakaoRestKey), naver = !!(SB && API() && L.naver !== false && L.naverClientId);  // 네이버 로그인: 검수 전까지 site.json 의 login.naver=false 로 꺼 둠
+    // 네이버 로그인: 검수 전까지 site.json 의 login.naver=false 로 고객에게는 숨김.
+    // 단, 관리자 화면으로 가는 로그인(next=admin.html)에서는 보여 줌 (개발 중 앱이라 멤버관리에 등록한 네이버 아이디만 로그인됨)
+    const adminLogin = next.startsWith("admin.html");
+    const kakao = !!(SB && API() && L.kakao && L.kakaoRestKey), naver = !!(SB && API() && L.naverClientId && (L.naver !== false || adminLogin));
     const perk = Number(SITE.member && SITE.member.firstOrderDiscount) || 0;
     view.innerHTML = `<div class="wrap"><div class="auth">
-      <div class="page-title"><h2>로그인 · 회원가입</h2><p>${[kakao && "카카오", naver && "네이버"].filter(Boolean).join("·") || "소셜"} 계정으로 바로 가입하고 로그인해요</p></div>
+      <div class="page-title"><h2>${adminLogin ? "관리자 로그인" : "로그인 · 회원가입"}</h2><p>${adminLogin ? "ADMIN_EMAILS 에 등록한 카카오·네이버 계정으로 로그인하세요" : `${[kakao && "카카오", naver && "네이버"].filter(Boolean).join("·") || "소셜"} 계정으로 바로 가입하고 로그인해요`}</p></div>
       ${perk && !INQUIRY() && (kakao || naver) ? `<p class="auth-perk">지금 가입하면 <b>첫 주문 ${perk}% 할인</b></p>` : ""}
       <div class="auth-btns">
         ${kakao ? `<button class="btn kakao" data-login="kakao">${PAYS.kakaopay.mark}카카오로 시작하기</button>` : ""}
@@ -1117,10 +1120,12 @@
         rows = d[SECTIONS[section].api] || []; draw();
       } catch (err) {
         view.innerHTML = msgPage(esc(err.message) + (/권한/.test(err.message)
-          ? `<br><small>이 계정을 관리자로 쓰려면 Cloudflare 워커의 ADMIN_EMAILS 에<br><b class="num" style="color:var(--ink)">${esc(USER.email)}</b> 를 넣으세요.</small>` : ""));
+          ? `<br><small>이 계정을 관리자로 쓰려면 Cloudflare 워커의 ADMIN_EMAILS 에<br><b class="num" style="color:var(--ink)">${esc(USER.email)}</b> 를 넣으세요.</small>` : ""),
+          `<button class="btn ghost" style="display:inline-flex;height:44px" data-relogin>다른 계정으로 로그인</button>`);
       }
     };
     view.onclick = async e => {
+      if (e.target.closest("[data-relogin]")) { await signOutClean(); location.href = "login.html?next=admin.html"; return; }
       const sec = e.target.closest("[data-sec]");
       if (sec) { section = sec.dataset.sec; status = SECTIONS[section].first; return load(); }
       const tab = e.target.closest("[data-tab]");
