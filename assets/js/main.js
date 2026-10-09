@@ -219,6 +219,15 @@
   const shipLabel = p => p.ticket ? (INQUIRY() ? "체험 예약" : "모바일 발송") : "산지직송";
   function card(p) {
     const r = rate(p), href = `product.html?id=${p.id}`;
+    // 오픈 예정 상품은 상세로 들어가지 않음 (사진·이름이 링크가 아님)
+    if (p.soon) return `<article class="card soon-card">
+      <div class="thumb">${visual(p)}${p.flag ? `<span class="flag">${esc(p.flag)}</span>` : ""}<span class="soon-veil">COMING SOON</span></div>
+      <button class="add" disabled>오픈 예정</button>
+      <div class="c-ship">${shipLabel(p)}</div>
+      <span class="c-name">${esc(p.name)}</span>
+      <div class="c-desc">${esc(p.sub)}</div>
+      <div class="c-price num"><span class="now"><span class="soon">오픈 예정</span></span></div>
+    </article>`;
     return `<article class="card">
       <a class="thumb" href="${href}" aria-label="${esc(p.name)} 상세보기">${visual(p)}${p.flag ? `<span class="flag">${esc(p.flag)}</span>` : ""}</a>
       ${p.soon ? `<button class="add" disabled>오픈 예정</button>` : `<button class="add" data-add="${p.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/></svg>담기</button>`}
@@ -303,6 +312,7 @@
   function pageProduct(view) {
     const p = byId(params.get("id"));
     if (!p) { view.innerHTML = `<p class="empty">상품을 찾을 수 없어요.<br><br><a class="btn ghost" style="display:inline-flex" href="shop.html">전체 상품 보기</a></p>`; return; }
+    if (p.soon) { view.innerHTML = msgPage(`<b style="color:var(--ink)">${esc(p.name)}</b>은(는) 오픈을 준비하고 있어요.<br>조금만 기다려 주세요!`, `<a class="btn ghost" style="display:inline-flex" href="shop.html?cat=${p.cat}">다른 상품 보기</a>`); return; }
     document.title = `${p.name} | ${SITE.name}`;
     const cat = SITE.categories.find(c => c.id === p.cat) || SITE.categories[0];
     let qty = 1;

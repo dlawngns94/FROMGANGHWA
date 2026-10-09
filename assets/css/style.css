@@ -418,3 +418,10 @@ label.pay-opt{cursor:pointer}
 /* 한국어 줄바꿈: 단어 중간에서 끊지 않고, 제목·짧은 문단은 줄 길이를 고르게 */
 h1,h2,h3,h4,.c-name,.d-name,.page-title p,.rail-head p,.c-desc,.d-sub,.strip .it span,.mode-note,.hint,.notice{text-wrap:balance}
 p,dd,td,li,.pitem-b{text-wrap:pretty}
+/* 오픈 예정 카드: 클릭되지 않고 사진을 살짝 가림 */
+.soon-card .thumb{cursor:default}
+.soon-card .thumb img{filter:saturate(.7) brightness(.85)}
+.soon-card:hover .thumb img{transform:none}
+.soon-veil{position:absolute;inset:auto 0 0 0;padding:14px 12px;text-align:center;color:#fff;font-size:12px;font-weight:700;letter-spacing:.2em;background:linear-gradient(transparent,rgba(20,22,15,.55))}
+.soon-card .c-name{color:var(--sub)}
+.soon-card .c-name:hover{text-decoration:none}

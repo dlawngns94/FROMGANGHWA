@@ -246,3 +246,14 @@ GitHub 웹에서 `data/products.json` 을 열고 ✏️(연필) → 수정 → *
 
 - `assets/css/style.css` 맨 위 `:root` — `--brand`(로고 리본 블루), `--sale`(할인율 색) 등
 - 로고: `assets/images/logo.png` 를 같은 이름으로 덮어쓰기 (가로형, 투명 배경 PNG 권장)
+
+## 7. 사진 출처 (무료 상업 이용 가능 사진)
+
+실제 상품 사진이 준비되면 같은 파일 이름으로 덮어쓰세요. 아래 사진은 분위기를 보여 주는 연출 이미지입니다.
+
+| 파일 | 사용 상품 | 출처 (라이선스) |
+|---|---|---|
+| `assets/images/redbean.jpg` | 팥 찜질팩 | https://www.pexels.com/photo/a-person-holding-dried-fruits-8891623/ (Pexels License) |
+| `assets/images/mugwort-leaf.jpg` | 쑥 찜질팩 | https://unsplash.com/photos/VYEJUQbQxyA (Unsplash License) |
+| `assets/images/seasonal-food.jpg` | 제철음식 만들기 | https://unsplash.com/photos/q-M8nQqBJvU (Unsplash License) |
+| `assets/images/season.jpg` | 계절 체험 | https://unsplash.com/photos/qIblLeN4Gg0 (Unsplash License) |
