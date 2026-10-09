@@ -216,7 +216,8 @@
     const n1 = p.name.split(/ (?=\d)/)[0];
     return `<div class="label-tile" style="background:${esc(bg)};color:${esc(fg)}"><span class="lt-top">${esc(SITE.nameEn)}</span><span class="lt-name">${esc(n1)}</span><span class="lt-unit">${esc(p.unit)}</span></div>`;
   }
-  const shipLabel = p => p.ticket ? (INQUIRY() ? "체험 예약" : "모바일 발송") : "산지직송";
+  const isStay = p => p.cat === "stay";
+  const shipLabel = p => p.ticket ? (INQUIRY() ? (isStay(p) ? "숙박 예약" : "체험 예약") : "모바일 발송") : "산지직송";
   function card(p) {
     const r = rate(p), href = `product.html?id=${p.id}`;
     // 오픈 예정 상품은 상세로 들어가지 않음 (사진·이름이 링크가 아님)
@@ -298,7 +299,7 @@
     const draw = () => {
       const items = [...base].sort(sorts[sort][1]);
       view.innerHTML = `<div class="wrap">
-        <div class="page-title"><h2>${esc(title)}</h2>${q ? "" : "<p>강화에서 바로 보내드려요</p>"}</div>
+        <div class="page-title"><h2>${esc(title)}</h2>${q ? "" : `<p>${esc((SITE.categories.find(c => c.id === cat) || {}).sub || "강화에서 바로 보내드려요")}</p>`}</div>
         <div class="toolbar"><span class="num">총 ${items.length}건</span>
           <div class="sorts">${Object.entries(sorts).map(([k, v]) => `<button data-sort="${k}" aria-pressed="${sort === k}">${v[0]}</button>`).join("")}</div></div>
         ${items.length ? `<div class="grid" style="padding-bottom:72px">${items.map(card).join("")}</div>` : `<p class="empty">찾는 상품이 없어요. 다른 단어로 검색해 보세요.</p>`}
@@ -493,7 +494,7 @@
   function infoHtml(p) {
     const c = SITE.company;
     const rows = p.ticket
-      ? [["체험명", p.name], ["운영", `${c.corpName} · 이리저리 체험관`], ...(p.info || [])]
+      ? (isStay(p) ? [["숙소명", p.name], ["운영", c.corpName], ...(p.info || [])] : [["체험명", p.name], ["운영", `${c.corpName} · 이리저리 체험관`], ...(p.info || [])])
       : [["품목 또는 명칭", p.name], ["포장단위별 용량(중량) · 수량", p.unit], ["원산지", p.origin], ["포장타입", p.pack], ["판매자", c.corpName], ...(p.info || [])];
     rows.push(["소비자상담 관련 전화번호", `${SITE.cs.tel} · ${c.email}`]);
     const guide = p.ticket
@@ -502,7 +503,7 @@
          ["교환 · 반품", "상품이 표시·광고와 다르거나 파손·변질된 경우 받으신 날부터 3개월, 그 사실을 안 날부터 30일 안에 교환·환불해 드려요. 사진과 함께 고객센터로 연락해 주세요."],
          ["단순 변심", "농산물은 신선식품이라 받으신 뒤 가치가 떨어지기 쉬워, 단순 변심에 의한 반품은 어려울 수 있어요."]];
     const table = (title, list) => `<h4 class="info-h">${title}</h4><table class="info-t">${list.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</table>`;
-    return table(p.ticket ? "체험 정보" : "상품정보 제공고시", rows) + table(p.ticket ? "예약 · 취소 안내" : "배송 · 교환 · 반품 안내", guide)
+    return table(p.ticket ? (isStay(p) ? "숙소 정보" : "체험 정보") : "상품정보 제공고시", rows) + table(p.ticket ? "예약 · 취소 안내" : "배송 · 교환 · 반품 안내", guide)
       + `<p class="mode-note" style="margin-top:10px">자세한 기준은 <a href="terms.html" style="text-decoration:underline">이용약관</a>을 확인해 주세요.</p>`;
   }
 
@@ -658,8 +659,8 @@
           <div class="form">
             <div class="field"><label for="i-name">이름</label><input id="i-name" maxlength="30" value="${esc(saved.name || "")}" placeholder="이름" autocomplete="name"></div>
             <div class="field"><label for="i-tel">휴대폰</label><input id="i-tel" maxlength="13" value="${esc(saved.tel || "")}" placeholder="010-0000-0000" inputmode="tel" autocomplete="tel"></div>
-            <div class="field"><label for="i-addr">${needAddr ? "배송 주소" : "주소 (선택)"}</label><input id="i-addr" maxlength="200" value="${esc(saved.addr || "")}" placeholder="${needAddr ? "도로명 주소와 상세 주소" : "체험만 문의하시면 비워 두셔도 돼요"}" autocomplete="street-address"></div>
-            <div class="field top"><label for="i-msg">문의 내용</label><textarea id="i-msg" maxlength="1000" rows="4" placeholder="${quote ? "체험 희망 날짜·인원, 궁금한 점을 적어 주세요" : "받고 싶은 날짜, 궁금한 점을 적어 주세요 (선택)"}"></textarea></div>
+            <div class="field"><label for="i-addr">${needAddr ? "배송 주소" : "주소 (선택)"}</label><input id="i-addr" maxlength="200" value="${esc(saved.addr || "")}" placeholder="${needAddr ? "도로명 주소와 상세 주소" : "체험·숙박만 문의하시면 비워 두셔도 돼요"}" autocomplete="street-address"></div>
+            <div class="field top"><label for="i-msg">문의 내용</label><textarea id="i-msg" maxlength="1000" rows="4" placeholder="${lines.some(l => isStay(byId(l.id))) ? "체크인·체크아웃 날짜, 인원, 궁금한 점을 적어 주세요" : quote ? "체험 희망 날짜·인원, 궁금한 점을 적어 주세요" : "받고 싶은 날짜, 궁금한 점을 적어 주세요 (선택)"}"></textarea></div>
             <input id="i-web" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
           </div>
         </form>

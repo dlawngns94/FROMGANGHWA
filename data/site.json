@@ -29,7 +29,8 @@
     { "id": "sea", "name": "수산·젓갈", "disabled": true },
     { "id": "side", "name": "반찬·김치", "disabled": true },
     { "id": "own", "name": "자체브랜드" },
-    { "id": "craft", "name": "이리저리 체험관" }
+    { "id": "craft", "name": "이리저리 체험관", "sub": "강화의 손재주와 계절을 직접 체험해 보세요" },
+    { "id": "stay", "name": "숙박예약", "sub": "강화에서 쉬어 가는 하룻밤" }
   ],
 
   "checkout": {

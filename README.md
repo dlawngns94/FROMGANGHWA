@@ -257,3 +257,4 @@ GitHub 웹에서 `data/products.json` 을 열고 ✏️(연필) → 수정 → *
 | `assets/images/mugwort-leaf.jpg` | 쑥 찜질팩 | https://unsplash.com/photos/VYEJUQbQxyA (Unsplash License) |
 | `assets/images/seasonal-food.jpg` | 제철음식 만들기 | https://unsplash.com/photos/q-M8nQqBJvU (Unsplash License) |
 | `assets/images/season.jpg` | 계절 체험 | https://unsplash.com/photos/qIblLeN4Gg0 (Unsplash License) |
+| `assets/images/hanok-stay.jpg` | 강화 한옥 스테이 (예시 숙소) | https://unsplash.com/photos/F9l4HKHzR88 (Unsplash License) |
