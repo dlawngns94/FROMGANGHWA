@@ -23,7 +23,7 @@
 [hidden]{display:none!important}
 body{margin:0}
 img{max-width:100%}
-body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:break-word}
 button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
 a{color:inherit;text-decoration:none}
 input,select,textarea{font:inherit;color:var(--ink)}
@@ -183,7 +183,7 @@ dl.info dt{color:var(--sub)}
 .done dl{text-align:left;display:grid;grid-template-columns:120px 1fr;margin:28px 0;border-top:2px solid var(--ink)}
 .done dt,.done dd{margin:0;padding-block:12px;border-bottom:1px solid var(--line);font-size:14px}
 .done dt{color:var(--sub)}
-.done dd{word-break:break-all}
+.done dd{overflow-wrap:anywhere}
 
 /* 모달 · 토스트 */
 .scrim{position:fixed;inset:0;background:rgba(20,22,15,.5);display:grid;place-items:center;z-index:60;padding:16px}
@@ -283,7 +283,7 @@ label.pay-opt{cursor:pointer}
 .ord-track{font-size:13px;color:var(--brand)}
 .ord-ship{display:grid;grid-template-columns:72px 1fr;gap:4px 8px;margin:4px 0 0;font-size:13px}
 .ord-ship dt{color:var(--mute)}
-.ord-ship dd{margin:0;word-break:break-all}
+.ord-ship dd{margin:0;overflow-wrap:anywhere}
 .adm-edit{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .adm-edit select,.adm-edit input{height:38px;border:1px solid var(--line);border-radius:4px;padding-inline:10px;background:var(--bg);min-width:0}
 .adm-edit input{flex:1 1 120px}
@@ -356,7 +356,7 @@ label.pay-opt{cursor:pointer}
 .story-b{max-width:680px;margin:0 auto 48px;text-align:center}
 .story-no{display:block;font-size:13px;color:var(--brand);letter-spacing:.1em;font-weight:700}
 .story-b h4{font-family:var(--display);font-size:clamp(21px,3vw,26px);line-height:1.4;margin:8px 0 14px;text-wrap:balance}
-.story-b p{margin:0;color:var(--sub);font-size:15px;line-height:1.9;text-wrap:pretty}
+.story-b p{margin:0;color:var(--sub);font-size:15px;line-height:1.9;text-wrap:balance}
 .story-b ul{list-style:none;margin:20px auto 0;padding:18px 22px;background:var(--brand-soft);border-radius:6px;text-align:left;display:grid;gap:8px;max-width:520px;font-size:14px}
 .story-b li{display:flex;gap:8px}
 .story-b li::before{content:"✓";color:var(--brand);font-weight:700}
@@ -394,7 +394,7 @@ label.pay-opt{cursor:pointer}
 .plist{border-top:1px solid var(--ink)}
 .pitem{padding:18px 4px;border-bottom:1px solid var(--line)}
 .pitem-h{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--mute);flex-wrap:wrap}
-.pitem-b{margin:10px 0 0;font-size:14px;line-height:1.75;white-space:pre-wrap;word-break:break-word}
+.pitem-b{margin:10px 0 0;font-size:14px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
 .plink{margin-left:auto;font-size:12px;color:var(--mute);text-decoration:underline}
 .qa{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:12px;margin-right:8px;vertical-align:1px}
 .pans{display:flex;gap:0;margin-top:12px;padding:14px;background:var(--soft);border-radius:6px;font-size:14px;line-height:1.75}
@@ -409,3 +409,12 @@ label.pay-opt{cursor:pointer}
   .rev-sum{grid-template-columns:1fr;gap:16px}
   .story-tile{height:220px}
 }
+
+/* 오픈 예정 상품 */
+.soon{color:var(--brand);font-weight:700}
+.add:disabled{color:var(--mute);background:var(--soft);cursor:default}
+.add:disabled:hover{border-color:var(--line);color:var(--mute)}
+
+/* 한국어 줄바꿈: 단어 중간에서 끊지 않고, 제목·짧은 문단은 줄 길이를 고르게 */
+h1,h2,h3,h4,.c-name,.d-name,.page-title p,.rail-head p,.c-desc,.d-sub,.strip .it span,.mode-note,.hint,.notice{text-wrap:balance}
+p,dd,td,li,.pitem-b{text-wrap:pretty}

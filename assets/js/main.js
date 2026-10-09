@@ -221,14 +221,15 @@
     const r = rate(p), href = `product.html?id=${p.id}`;
     return `<article class="card">
       <a class="thumb" href="${href}" aria-label="${esc(p.name)} 상세보기">${visual(p)}${p.flag ? `<span class="flag">${esc(p.flag)}</span>` : ""}</a>
-      <button class="add" data-add="${p.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/></svg>담기</button>
+      ${p.soon ? `<button class="add" disabled>오픈 예정</button>` : `<button class="add" data-add="${p.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/></svg>담기</button>`}
       <div class="c-ship">${shipLabel(p)}</div>
       <a class="c-name" href="${href}">${esc(p.name)}</a>
       <div class="c-desc">${esc(p.sub)}</div>
-      <div class="c-price num">${r ? `<span class="rate">${r}%</span>` : ""}<span class="now">${priceText(p)}</span>${p.was ? `<span class="was">${won(p.was)}원</span>` : ""}</div>
+      <div class="c-price num">${r ? `<span class="rate">${r}%</span>` : ""}<span class="now">${p.soon ? `<span class="soon">오픈 예정</span>` : priceText(p)}</span>${p.was && !p.soon ? `<span class="was">${won(p.was)}원</span>` : ""}</div>
     </article>`;
   }
   function addToCart(id, qty = 1) {
+    if (byId(id).soon) return toast("오픈 예정 상품이에요. 조금만 기다려 주세요!");
     const l = cart.find(x => x.id === id);
     if (l) l.qty = Math.min(99, l.qty + qty); else cart.push({ id, qty });
     saveCart(); toast(`장바구니에 담았어요 · ${byId(id).name}`);
@@ -326,19 +327,20 @@
             <div class="d-ship">${shipLabel(p)}</div>
             <h2 class="d-name">${esc(p.name)}</h2>
             <p class="d-sub">${esc(p.sub)}</p>
-            <div class="d-price num">${r ? `<span class="rate">${r}%</span>` : ""}<span class="now">${p.price ? `${won(p.price)}<small>원</small>` : "가격 문의"}</span></div>
-            ${p.was ? `<div class="d-was num">${won(p.was)}원</div>` : ""}
+            <div class="d-price num">${r && !p.soon ? `<span class="rate">${r}%</span>` : ""}<span class="now">${p.soon ? `<span class="soon">오픈 예정</span>` : p.price ? `${won(p.price)}<small>원</small>` : "가격 문의"}</span></div>
+            ${p.was && !p.soon ? `<div class="d-was num">${won(p.was)}원</div>` : ""}
             <dl class="info">
               <dt>${p.ticket ? "이용" : "배송"}</dt><dd>${p.ticket ? (INQUIRY() ? "구매 문의 후 일정·비용을 안내해 드려요" : "결제 후 문자로 이용권 발송") : `산지직송 · ${esc(SITE.shipping.cutoff)}<br><span style="color:var(--mute);font-size:13px">${won(SITE.shipping.freeOver)}원 이상 무료배송</span>`}</dd>
               <dt>판매단위</dt><dd>${esc(p.unit)}</dd>
               <dt>포장타입</dt><dd>${esc(p.pack)}</dd>
               <dt>원산지</dt><dd>${esc(p.origin)}</dd>
-              <dt>수량</dt><dd><div class="qty"><button data-q="-1" aria-label="수량 빼기" ${qty <= 1 ? "disabled" : ""}>−</button><span class="num">${qty}</span><button data-q="1" aria-label="수량 더하기">+</button></div></dd>
+              ${p.soon ? "" : `<dt>수량</dt><dd><div class="qty"><button data-q="-1" aria-label="수량 빼기" ${qty <= 1 ? "disabled" : ""}>−</button><span class="num">${qty}</span><button data-q="1" aria-label="수량 더하기">+</button></div></dd>`}
             </dl>
-            ${p.price ? `<div class="d-total"><span class="lbl">총 상품금액:</span><span class="v num">${won(p.price * qty)}</span><span>원</span></div>` : `<div class="d-total"><span class="lbl">금액은 문의 후 안내해 드려요</span></div>`}
-            <div class="d-actions">
-              <button class="btn ghost" data-addqty>장바구니 담기</button>
-              <button class="btn primary" data-buynow>${INQUIRY() ? "구매 문의" : "바로 구매"}</button>
+            ${p.soon ? `<div class="d-total"><span class="lbl">오픈을 준비하고 있어요. 조금만 기다려 주세요!</span></div>` : p.price ? `<div class="d-total"><span class="lbl">총 상품금액:</span><span class="v num">${won(p.price * qty)}</span><span>원</span></div>` : `<div class="d-total"><span class="lbl">금액은 문의 후 안내해 드려요</span></div>`}
+            <div class="d-actions">${p.soon
+              ? `<button class="btn primary" disabled>오픈 예정이에요</button>`
+              : `<button class="btn ghost" data-addqty>장바구니 담기</button>
+              <button class="btn primary" data-buynow>${INQUIRY() ? "구매 문의" : "바로 구매"}</button>`}
             </div>
           </div>
         </div>`;
@@ -1170,7 +1172,7 @@
       return;
     }
     // 없어진 상품(판매 종료 등)이 브라우저 장바구니에 남아 있으면 정리
-    if (cart.some(l => !byId(l.id))) { cart = cart.filter(l => byId(l.id)); store.set("fg_cart", cart); }
+    if (cart.some(l => !byId(l.id) || byId(l.id).soon)) { cart = cart.filter(l => byId(l.id) && !byId(l.id).soon); store.set("fg_cart", cart); }
     await initAuth();
     await syncCart();
     shell();

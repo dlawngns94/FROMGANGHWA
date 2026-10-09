@@ -536,6 +536,7 @@ function calcAmount(items, products, shipping, rate = 0) {
     const p = products.find(x => x.id === id);
     const n = Number(qty);
     if (!p || !Number.isInteger(n) || n < 1 || n > 99) fail(400, `잘못된 상품 정보: ${id}`);
+    if (p.soon) fail(400, `${p.name}은(는) 오픈 예정 상품이에요`);
     goods += p.price * n;
     if (p.taxFree) taxExGoods += p.price * n;
     if (!p.ticket) needShip = true;
