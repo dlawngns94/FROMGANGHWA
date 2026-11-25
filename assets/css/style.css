@@ -425,3 +425,25 @@ p,dd,td,li,.pitem-b{text-wrap:pretty}
 .soon-veil{position:absolute;inset:auto 0 0 0;padding:14px 12px;text-align:center;color:#fff;font-size:12px;font-weight:700;letter-spacing:.2em;background:linear-gradient(transparent,rgba(20,22,15,.55))}
 .soon-card .c-name{color:var(--sub)}
 .soon-card .c-name:hover{text-decoration:none}
+
+/* 예약·1:1 문의 */
+.wrap.narrow{max-width:760px}
+#rsvForm .chk{margin:4px 20px 0}
+#rsvForm #rsvBtn{margin:16px 20px 20px;width:calc(100% - 40px);flex:none}
+#r-pick{display:grid;gap:14px}
+#r-pick:empty{display:none}
+.rsv-prod{display:grid;grid-template-columns:72px minmax(0,1fr);gap:14px;align-items:center;padding:12px;border-radius:6px;background:var(--soft)}
+.rsv-prod img,.rsv-prod .label-tile{width:72px;height:72px;object-fit:cover;border-radius:4px;font-size:8px}
+.rsv-prod b{display:block}
+.rsv-prod span{display:block;font-size:13px;color:var(--sub)}
+.rsv-prod a{font-size:13px;color:var(--brand)}
+.rsv-note{margin:-4px 0 0;padding-left:112px;color:var(--brand);font-weight:700}
+.rsv-note:empty{display:none}
+@media (max-width:560px){.rsv-note{padding-left:0}}
+a.add{text-decoration:none}
+/* 관리자: 예약·문의 */
+.st-q-confirmed{background:var(--brand-soft);color:var(--brand)}
+.bk-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bk-when{font-size:15px}
+.adm-sec{flex-wrap:wrap}
+.toolbar .sorts{flex-wrap:wrap}

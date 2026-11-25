@@ -186,7 +186,7 @@
         <div class="f-row">
           <div><h4>고객행복센터</h4><p class="tel num">${esc(SITE.cs.tel)}</p><p>${esc(SITE.cs.hours)}</p></div>
           <div>
-            <div class="f-links"><span>회사소개</span><a href="terms.html">이용약관</a><a href="privacy.html"><b>개인정보처리방침</b></a>${INQUIRY() ? "" : `<a href="lookup.html">비회원 주문조회</a>`}</div>
+            <div class="f-links"><span>회사소개</span><a href="terms.html">이용약관</a><a href="privacy.html"><b>개인정보처리방침</b></a><a href="reserve.html">예약·1:1 문의</a>${INQUIRY() ? "" : `<a href="lookup.html">비회원 주문조회</a>`}</div>
             <p>법인명(상호): ${esc(c.corpName)} · 대표자: ${esc(c.ceo)} · 사업자등록번호: ${esc(c.businessNumber)}<br>
             통신판매업신고: ${esc(c.mailOrderNumber)}<br>
             주소: ${esc(c.address)} · 이메일: ${esc(c.email)}<br>
@@ -231,7 +231,7 @@
     </article>`;
     return `<article class="card">
       <a class="thumb" href="${href}" aria-label="${esc(p.name)} 상세보기">${visual(p)}${p.flag ? `<span class="flag">${esc(p.flag)}</span>` : ""}</a>
-      ${p.soon ? `<button class="add" disabled>오픈 예정</button>` : `<button class="add" data-add="${p.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/></svg>담기</button>`}
+      ${p.soon ? `<button class="add" disabled>오픈 예정</button>` : p.ticket ? `<a class="add" href="reserve.html?id=${p.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>예약 문의</a>` : `<button class="add" data-add="${p.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/></svg>담기</button>`}
       <div class="c-ship">${shipLabel(p)}</div>
       <a class="c-name" href="${href}">${esc(p.name)}</a>
       <div class="c-desc">${esc(p.sub)}</div>
@@ -309,6 +309,19 @@
     draw();
   }
 
+  /* ---------- 검색용 메타 (상품별 설명문·대표 주소) ----------
+     product.html?id=… 은 모두 같은 HTML 파일이라, 자바스크립트를 실행하는 검색 로봇(구글 등)이
+     상품마다 다른 페이지로 인식하도록 설명문과 canonical 주소를 상품에 맞게 바꿔 줌 */
+  const SITE_URL = "https://www.fromganghwa.co.kr";
+  function setMeta(desc, path) {
+    let m = document.querySelector('meta[name="description"]');
+    if (!m) { m = document.createElement("meta"); m.name = "description"; document.head.appendChild(m); }
+    m.content = desc;
+    let c = document.querySelector('link[rel="canonical"]');
+    if (!c) { c = document.createElement("link"); c.rel = "canonical"; document.head.appendChild(c); }
+    c.href = SITE_URL + "/" + path;
+  }
+
   /* ---------- 페이지: 상품 상세 ---------- */
   function pageProduct(view) {
     const p = byId(params.get("id"));
@@ -341,15 +354,17 @@
             <div class="d-price num">${r && !p.soon ? `<span class="rate">${r}%</span>` : ""}<span class="now">${p.soon ? `<span class="soon">오픈 예정</span>` : p.price ? `${won(p.price)}<small>원</small>` : "가격 문의"}</span></div>
             ${p.was && !p.soon ? `<div class="d-was num">${won(p.was)}원</div>` : ""}
             <dl class="info">
-              <dt>${p.ticket ? "이용" : "배송"}</dt><dd>${p.ticket ? (INQUIRY() ? "구매 문의 후 일정·비용을 안내해 드려요" : "결제 후 문자로 이용권 발송") : `산지직송 · ${esc(SITE.shipping.cutoff)}<br><span style="color:var(--mute);font-size:13px">${won(SITE.shipping.freeOver)}원 이상 무료배송</span>`}</dd>
+              <dt>${p.ticket ? "이용" : "배송"}</dt><dd>${p.ticket ? (INQUIRY() ? "예약 문의를 남겨 주시면 일정·비용을 안내해 드려요" : "결제 후 문자로 이용권 발송") : `산지직송 · ${esc(SITE.shipping.cutoff)}<br><span style="color:var(--mute);font-size:13px">${won(SITE.shipping.freeOver)}원 이상 무료배송</span>`}</dd>
               <dt>판매단위</dt><dd>${esc(p.unit)}</dd>
               <dt>포장타입</dt><dd>${esc(p.pack)}</dd>
               <dt>원산지</dt><dd>${esc(p.origin)}</dd>
-              ${p.soon ? "" : `<dt>수량</dt><dd><div class="qty"><button data-q="-1" aria-label="수량 빼기" ${qty <= 1 ? "disabled" : ""}>−</button><span class="num">${qty}</span><button data-q="1" aria-label="수량 더하기">+</button></div></dd>`}
+              ${p.soon || p.ticket && INQUIRY() ? "" : `<dt>수량</dt><dd><div class="qty"><button data-q="-1" aria-label="수량 빼기" ${qty <= 1 ? "disabled" : ""}>−</button><span class="num">${qty}</span><button data-q="1" aria-label="수량 더하기">+</button></div></dd>`}
             </dl>
             ${p.soon ? `<div class="d-total"><span class="lbl">오픈을 준비하고 있어요. 조금만 기다려 주세요!</span></div>` : p.price ? `<div class="d-total"><span class="lbl">총 상품금액:</span><span class="v num">${won(p.price * qty)}</span><span>원</span></div>` : `<div class="d-total"><span class="lbl">금액은 문의 후 안내해 드려요</span></div>`}
             <div class="d-actions">${p.soon
               ? `<button class="btn primary" disabled>오픈 예정이에요</button>`
+              : p.ticket && INQUIRY()
+              ? `<a class="btn primary" href="reserve.html?id=${p.id}">${isStay(p) ? "숙박" : "체험"} 예약 문의하기</a>`
               : `<button class="btn ghost" data-addqty>장바구니 담기</button>
               <button class="btn primary" data-buynow>${INQUIRY() ? "구매 문의" : "바로 구매"}</button>`}
             </div>
@@ -708,6 +723,112 @@
     };
   }
 
+  /* ---------- 페이지: 예약·1:1 문의 ---------- */
+  const ymdLocal = (d = new Date()) => new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+  const addDays = (ymd, n) => { const d = new Date(ymd + "T00:00:00"); d.setDate(d.getDate() + n); return ymdLocal(d); };
+  const dayLabel = ymd => ymd ? `${ymd.slice(5, 7).replace(/^0/, "")}월 ${ymd.slice(8, 10).replace(/^0/, "")}일 (${"일월화수목금토"[new Date(ymd + "T00:00:00").getDay()]})` : "";
+  const nightsOf = (a, b) => Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 864e5);
+  const bookingWhen = b => b.kind === "stay"
+    ? `${dayLabel(b.date_from)} → ${dayLabel(b.date_to)} · ${nightsOf(b.date_from, b.date_to)}박`
+    : dayLabel(b.date_from);
+
+  function pageReserve(view) {
+    document.title = `예약·1:1 문의 | ${SITE.name}`;
+    setMeta(`${SITE.name} 이리저리 체험관·숙박 예약과 1:1 문의를 남겨 주세요. 확인 후 연락드려요.`, "reserve.html");
+    const tickets = PRODUCTS.filter(p => p.ticket && !p.soon);
+    let sel = (tickets.find(p => p.id === params.get("id")) || {}).id || (params.get("type") === "general" ? "" : (tickets[0] || {}).id || "");
+    const me = isMember();
+    const saved = me ? { name: PROFILE.name, tel: PROFILE.phone } : store.get("fg_ship", {});
+    const today = ymdLocal();
+    const opt = (p) => `<option value="${p.id}" ${sel === p.id ? "selected" : ""}>${esc(p.name)}</option>`;
+    const groups = [["craft", "이리저리 체험관"], ["stay", "숙박"]].map(([c, label]) => {
+      const list = tickets.filter(p => (p.cat === "stay" ? "stay" : "craft") === c);
+      return list.length ? `<optgroup label="${label}">${list.map(opt).join("")}</optgroup>` : "";
+    }).join("");
+    view.innerHTML = `<div class="wrap narrow"><div class="page-title"><h2>예약·1:1 문의</h2><p>남겨 주신 연락처로 확인 후 연락드려요. 예약은 상담 후 확정돼요.</p></div>
+      <form class="box" id="rsvForm" novalidate>
+        <div class="form">
+          <div class="field"><label for="r-what">문의 종류</label><select id="r-what">${groups}<option value="" ${sel ? "" : "selected"}>1:1 문의 (상품·배송·기타)</option></select></div>
+          <div id="r-pick"></div>
+          <div class="field"><label for="r-name">이름</label><input id="r-name" maxlength="30" value="${esc(saved.name || "")}" placeholder="이름" autocomplete="name"></div>
+          <div class="field"><label for="r-tel">휴대폰</label><input id="r-tel" maxlength="13" value="${esc(saved.tel || "")}" placeholder="010-0000-0000" inputmode="tel" autocomplete="tel"></div>
+          <div class="field top"><label for="r-msg">문의 내용</label><textarea id="r-msg" maxlength="1000" rows="5"></textarea></div>
+          <input id="r-web" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+        </div>
+        <label class="chk agree-pay"><input type="checkbox" id="r-agree"><span>[필수] 예약·상담을 위한 <a href="privacy.html" target="_blank">개인정보 수집·이용</a>(이름, 휴대폰, 문의 내용 · 상담 완료 후 1년 보관)에 동의합니다.</span></label>
+        <button class="btn primary" id="rsvBtn" type="button">문의 보내기</button>
+      </form>
+      <div style="height:48px"></div></div>`;
+
+    const pick = $("#r-pick"), msg = $("#r-msg");
+    const drawPick = () => {
+      const p = byId(sel);
+      if (!p) {
+        pick.innerHTML = "";
+        msg.placeholder = "궁금하신 점을 자유롭게 적어 주세요";
+        return;
+      }
+      const stay = isStay(p);
+      pick.innerHTML = `
+        <div class="rsv-prod">${visual(p)}<div><b>${esc(p.name)}</b><span>${esc(p.sub)}</span><a href="product.html?id=${p.id}">상품 자세히 보기 ›</a></div></div>
+        <div class="field"><label for="r-from">${stay ? "체크인" : "희망 날짜"}</label><input type="date" id="r-from" min="${today}" value=""></div>
+        ${stay ? `<div class="field"><label for="r-to">체크아웃</label><input type="date" id="r-to" min="${addDays(today, 1)}" value=""></div>` : ""}
+        <div class="field"><label>인원</label><div><div class="qty"><button type="button" data-p="-1" aria-label="인원 빼기">−</button><span class="num" id="r-ppl">${stay ? 2 : 1}</span><button type="button" data-p="1" aria-label="인원 더하기">+</button></div><span class="mode-note" style="margin-left:8px">명</span></div></div>
+        <p class="mode-note rsv-note" id="r-when"></p>`;
+      msg.placeholder = stay ? "도착 예정 시간, 요청 사항, 궁금한 점을 적어 주세요 (선택)" : "희망 시간대, 단체 여부, 궁금한 점을 적어 주세요 (선택)";
+    };
+    const showWhen = () => {
+      const f = $("#r-from"), t = $("#r-to"), w = $("#r-when"); if (!f || !w) return;
+      if (t) { t.min = f.value ? addDays(f.value, 1) : addDays(today, 1); if (f.value && (!t.value || t.value <= f.value)) t.value = addDays(f.value, 1); }
+      w.textContent = !f.value ? "" : t && t.value ? `${dayLabel(f.value)} → ${dayLabel(t.value)} · ${nightsOf(f.value, t.value)}박` : t ? "" : dayLabel(f.value);
+    };
+    drawPick();
+    $("#r-what").onchange = e => { sel = e.target.value; drawPick(); history.replaceState(null, "", sel ? `reserve.html?id=${sel}` : "reserve.html?type=general"); };
+    pick.addEventListener("input", showWhen);
+    pick.addEventListener("click", e => {
+      const b = e.target.closest("[data-p]"); if (!b) return;
+      const el = $("#r-ppl"); el.textContent = Math.max(1, Math.min(99, +el.textContent + +b.dataset.p));
+    });
+
+    $("#rsvBtn").onclick = async () => {
+      const p = byId(sel), stay = p && isStay(p);
+      const body = { productId: p ? p.id : "", name: $("#r-name").value.trim(), tel: $("#r-tel").value.trim(), message: msg.value.trim(), website: $("#r-web").value };
+      if (p) {
+        body.dateFrom = $("#r-from").value; body.people = +$("#r-ppl").textContent;
+        if (!body.dateFrom) { $("#r-from").focus(); return toast(stay ? "체크인 날짜를 선택해 주세요" : "희망 날짜를 선택해 주세요"); }
+        if (body.dateFrom < today) { $("#r-from").focus(); return toast("지난 날짜는 선택할 수 없어요"); }
+        if (stay) {
+          body.dateTo = $("#r-to").value;
+          if (!body.dateTo || body.dateTo <= body.dateFrom) { $("#r-to").focus(); return toast("체크아웃 날짜를 확인해 주세요"); }
+        }
+      } else if (!body.message) { msg.focus(); return toast("문의 내용을 입력해 주세요"); }
+      if (!body.name) { $("#r-name").focus(); return toast("이름을 입력해 주세요"); }
+      if (!/^0\d{8,10}$/.test(body.tel.replace(/\D/g, ""))) { $("#r-tel").focus(); return toast("휴대폰 번호를 확인해 주세요"); }
+      if (!$("#r-agree").checked) return toast("개인정보 수집·이용에 동의해 주세요");
+      if (!API()) return toast("예약·문의 접수는 준비 중이에요. 고객행복센터로 연락해 주세요");
+      const btn = $("#rsvBtn"); btn.disabled = true;
+      try {
+        const { booking } = await api("/booking", body);
+        if (!me) store.set("fg_ship", { ...store.get("fg_ship", {}), name: body.name, tel: body.tel });
+        document.title = `문의 접수 완료 | ${SITE.name}`;
+        const b = { kind: p ? (stay ? "stay" : "craft") : "general", date_from: body.dateFrom, date_to: body.dateTo };
+        view.innerHTML = `<div class="wrap"><div class="done">
+          <div class="ok"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>
+          <h2>${p ? "예약 문의가" : "문의가"} 접수되었어요</h2>
+          <p style="color:var(--sub);margin:0">확인 후 <b class="num">${esc(body.tel)}</b> 로 연락드릴게요.${p ? "<br>예약은 상담 후 확정돼요." : ""}</p>
+          <dl>
+            <dt>접수번호</dt><dd class="num"><b>${esc(booking.booking_no)}</b></dd>
+            ${p ? `<dt>상품</dt><dd>${esc(p.name)}</dd><dt>${stay ? "일정" : "희망 날짜"}</dt><dd>${bookingWhen(b)}</dd><dt>인원</dt><dd>${body.people}명</dd>` : `<dt>종류</dt><dd>1:1 문의</dd>`}
+          </dl>
+          <div class="d-actions"><a class="btn primary" href="index.html">홈으로</a></div>
+        </div></div>`;
+        window.scrollTo({ top: 0 });
+      } catch (err) {
+        toast(err.message); btn.disabled = false;
+      }
+    };
+  }
+
   function localOrder(lines, t, method) {
     const first = byId(lines[0].id);
     return {
@@ -1055,12 +1176,31 @@
     if (!API() || !SB) { view.innerHTML = msgPage("서버(api)와 Supabase 설정 후 사용할 수 있어요."); return; }
     if (!USER) { location.replace("login.html?next=admin.html"); return; }
     const SECTIONS = {
+      booking: { name: "예약·문의", tabs: { new: "새 문의", upcoming: "다가오는 예약", contacted: "연락함", confirmed: "예약확정", done: "완료", cancelled: "취소", all: "전체" }, first: "new", api: "bookings" },
       inquiry: { name: "구매 문의", tabs: { new: "새 문의", contacted: "연락함", done: "완료", cancelled: "취소", all: "전체" }, first: "new", api: "inquiries" },
       review: { name: "상품 후기", tabs: { all: "전체", shown: "공개", hidden: "숨김" }, first: "all", api: "reviews" },
       question: { name: "상품 문의", tabs: { open: "답변대기", answered: "답변완료", all: "전체" }, first: "open", api: "questions" },
       order: { name: "주문", tabs: { paid: "결제완료", preparing: "상품준비중", shipped: "배송중", delivered: "배송완료", cancelled: "취소", all: "전체" }, first: "paid", api: "orders" }
     };
-    let section = INQUIRY() ? "inquiry" : "order", status = SECTIONS[section].first, rows = [];
+    let section = INQUIRY() ? "booking" : "order", status = SECTIONS[section].first, rows = [];
+    const BK_STATUS = { new: "새 문의", contacted: "연락함", confirmed: "예약확정", done: "완료", cancelled: "취소" };
+    const BK_KIND = { craft: "체험", stay: "숙박", general: "1:1 문의" };
+    const bkRow = b => `<article class="ord">
+      <div class="ord-h"><span class="num">접수 ${fmtDate(b.created_at)}</span><span class="st st-q-${esc(b.status)}">${BK_STATUS[b.status] || esc(b.status)}</span></div>
+      <div class="ord-no num">접수번호 ${esc(b.booking_no)}</div>
+      <div class="bk-title"><span class="pill">${BK_KIND[b.kind] || esc(b.kind)}</span>${b.product_id ? `<a href="product.html?id=${esc(b.product_id)}" style="font-weight:700">${esc(b.product_name || pname(b.product_id))}</a>` : ""}</div>
+      ${b.date_from ? `<div class="bk-when"><b>${bookingWhen(b)}</b>${b.people ? ` · ${b.people}명` : ""}${b.date_from < ymdLocal() ? ` <span class="mode-note">(지난 날짜)</span>` : ""}</div>` : ""}
+      <dl class="ord-ship">
+        <dt>이름</dt><dd>${esc(b.name)}${b.user_id ? ` <span class="pill">회원</span>` : ""}</dd>
+        <dt>휴대폰</dt><dd><a class="num" href="tel:${esc(b.tel.replace(/[^\d]/g, ""))}" style="color:var(--brand);text-decoration:underline">${esc(b.tel)}</a></dd>
+        <dt>문의 내용</dt><dd style="white-space:pre-wrap">${esc(b.message || "-")}</dd>
+      </dl>
+      <div class="adm-edit" data-bk="${esc(b.booking_no)}">
+        <select data-f="status">${Object.keys(BK_STATUS).map(s => `<option value="${s}" ${b.status === s ? "selected" : ""}>${BK_STATUS[s]}</option>`).join("")}</select>
+        <input data-f="memo" placeholder="관리자 메모 (고객에게 안 보여요)" value="${esc(b.admin_memo || "")}" maxlength="500">
+        <button class="btn primary" data-save>저장</button>
+      </div>
+    </article>`;
     const orderRow = o => orderCard(o, `
       <dl class="ord-ship">
         <dt>받는 분</dt><dd>${esc(o.ship.name)} · <span class="num">${esc(o.ship.tel)}</span></dd>
@@ -1110,7 +1250,7 @@
         <div class="adm-sec">${Object.entries(SECTIONS).map(([k, s]) => `<button data-sec="${k}" aria-pressed="${section === k}">${s.name}</button>`).join("")}</div>
         <div class="toolbar"><span class="num">총 ${rows.length}건</span>
           <div class="sorts">${Object.entries(sec.tabs).map(([k, v]) => `<button data-tab="${k}" aria-pressed="${status === k}">${v}</button>`).join("")}</div></div>
-        <div class="box ord-list adm">${rows.length ? rows.map({ inquiry: inqRow, order: orderRow, review: revRow, question: qRow }[section]).join("") : `<p class="empty">${sec.name} 내역이 없어요.</p>`}</div>
+        <div class="box ord-list adm">${rows.length ? rows.map({ booking: bkRow, inquiry: inqRow, order: orderRow, review: revRow, question: qRow }[section]).join("") : `<p class="empty">${sec.name} 내역이 없어요.</p>`}</div>
         <div style="height:72px"></div></div>`;
     };
     const load = async () => {
@@ -1135,9 +1275,15 @@
         if (rv) { await api("/admin/review", { id: +rv.dataset.rev, hidden: rv.dataset.hide === "1" }); toast(rv.dataset.hide === "1" ? "후기를 숨겼어요" : "후기를 다시 보이게 했어요"); return load(); }
         if (an) { await api("/admin/question", { id: +an.dataset.ans, answer: $(`[data-ans-text="${an.dataset.ans}"]`, view).value }); toast("답변을 저장했어요"); return load(); }
       } catch (err) { return toast(err.message); }
-      const box = e.target.closest(".adm-edit"); if (!box || !box.dataset.inq && !box.dataset.no) return;
+      const box = e.target.closest(".adm-edit"); if (!box || !box.dataset.inq && !box.dataset.no && !box.dataset.bk) return;
       const f = k => $(`[data-f=${k}]`, box).value.trim();
       try {
+        if (box.dataset.bk) {
+          if (!e.target.closest("[data-save]")) return;
+          await api("/admin/booking", { bookingNo: box.dataset.bk, status: f("status"), memo: f("memo") });
+          toast("저장했어요"); load();
+          return;
+        }
         if (box.dataset.inq) {
           if (!e.target.closest("[data-save]")) return;
           await api("/admin/inquiry", { inquiryNo: box.dataset.inq, status: f("status"), memo: f("memo") });
@@ -1193,6 +1339,6 @@
     await syncCart();
     shell();
     ({ home: pageHome, shop: pageShop, product: pageProduct, cart: pageCart, order: pageOrder,
-       login: pageLogin, naver: pageOAuth, kakao: pageOAuth, mypage: pageMypage, lookup: pageLookup, admin: pageAdmin, policy: pagePolicy }[PAGE] || pageHome)(view);
+       reserve: pageReserve, login: pageLogin, naver: pageOAuth, kakao: pageOAuth, mypage: pageMypage, lookup: pageLookup, admin: pageAdmin, policy: pagePolicy }[PAGE] || pageHome)(view);
   })();
 })();

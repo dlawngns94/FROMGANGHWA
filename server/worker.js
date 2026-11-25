@@ -6,6 +6,7 @@
  *
  * 경로
  *  POST /inquiry             구매 문의 저장 (결제 보류 중일 때 사용)
+ *  POST /booking             예약·문의 저장 (체험·숙박 예약, 1:1 문의)
  *  POST /checkout            주문서 저장 (금액은 서버가 products.json 으로 다시 계산)
  *  POST /naverpay/approve    네이버페이 결제 승인
  *  POST /kakaopay/ready      카카오페이 결제창 준비
@@ -17,6 +18,8 @@
  *  POST /me/withdraw         회원 탈퇴
  *  GET  /admin/inquiries     관리자: 구매 문의 목록
  *  POST /admin/inquiry       관리자: 문의 상태·메모 저장
+ *  GET  /admin/bookings      관리자: 예약·문의 목록
+ *  POST /admin/booking       관리자: 예약·문의 상태·메모 저장
  *  GET  /admin/reviews       관리자: 상품 후기 목록
  *  POST /admin/review        관리자: 후기 숨김/보이기
  *  GET  /admin/questions     관리자: 상품 문의 목록
@@ -50,6 +53,16 @@ class HttpError extends Error { constructor(status, message) { super(message); t
 const fail = (status, message) => { throw new HttpError(status, message); };
 
 export default {
+  // Supabase 무료 플랜은 오래 쓰지 않으면 프로젝트를 멈춥니다.
+  // Cloudflare 워커 > Settings > Triggers > Cron Triggers 에 하루 한 번(예: 0 0 * * *) 을 넣으면
+  // 아래가 매일 Supabase 에 아주 작은 조회를 한 번 보내 멈추지 않게 합니다.
+  async scheduled(event, env, ctx) {
+    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) return;
+    ctx.waitUntil(makeDb(env).select("profiles?select=id&limit=1")
+      .then(() => console.log("KEEPALIVE ok"))
+      .catch(e => console.error("KEEPALIVE fail", e.message)));
+  },
+
   async fetch(req, env, ctx) {
     let origin = "*";
     try { origin = new URL(env.SITE_URL).origin; } catch {}
@@ -96,6 +109,9 @@ const ROUTES = {
   "POST /auth/kakao": kakaoLogin,
   "POST /me/withdraw": withdraw,
   "POST /inquiry": inquiry,
+  "POST /booking": booking,
+  "GET /admin/bookings": adminBookings,
+  "POST /admin/booking": adminBookingUpdate,
   "GET /admin/inquiries": adminInquiries,
   "POST /admin/inquiry": adminInquiryUpdate,
   "GET /admin/reviews": adminReviews,
@@ -193,6 +209,78 @@ async function adminInquiryUpdate({ env, req, body, db }) {
   });
   if (!u) fail(404, "문의를 찾을 수 없어요");
   return { inquiry: u };
+}
+
+/* ---------------- 예약·문의 ----------------
+ * 체험·숙박 상품은 희망 날짜·인원을, 1:1 문의는 내용만 받아 bookings 표에 저장합니다. 결제는 일어나지 않습니다.
+ */
+const BK_STATUS = ["new", "contacted", "confirmed", "done", "cancelled"];
+const kstToday = () => new Date(Date.now() + 9 * 36e5).toISOString().slice(0, 10);
+const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s + "T00:00:00Z"));
+
+async function booking({ env, req, body, db }) {
+  if (body.website) return { booking: { booking_no: "IGNORED" } };   // 자동 등록 봇 (숨김 칸을 채움)
+  const name = String(body.name || "").trim().slice(0, 30);
+  const tel = String(body.tel || "").trim().slice(0, 13);
+  const message = String(body.message || "").trim().slice(0, 1000);
+  if (!name) fail(400, "이름을 입력해 주세요");
+  if (!/^0\d{8,10}$/.test(digits(tel))) fail(400, "휴대폰 번호를 확인해 주세요");
+
+  let kind = "general", product = null, dateFrom = null, dateTo = null, people = null;
+  if (body.productId) {
+    const { products } = await catalog(env);
+    product = products.find(p => p.id === body.productId && p.ticket && !p.soon);
+    if (!product) fail(400, "예약할 수 없는 상품이에요");
+    kind = product.cat === "stay" ? "stay" : "craft";
+    dateFrom = String(body.dateFrom || "");
+    if (!isDate(dateFrom)) fail(400, kind === "stay" ? "체크인 날짜를 선택해 주세요" : "희망 날짜를 선택해 주세요");
+    if (dateFrom < kstToday()) fail(400, "지난 날짜는 선택할 수 없어요");
+    if (kind === "stay") {
+      dateTo = String(body.dateTo || "");
+      if (!isDate(dateTo)) fail(400, "체크아웃 날짜를 선택해 주세요");
+      if (dateTo <= dateFrom) fail(400, "체크아웃은 체크인 다음 날 이후로 선택해 주세요");
+    }
+    people = Math.floor(Number(body.people));
+    if (!(people >= 1 && people <= 99)) fail(400, "인원을 확인해 주세요");
+  } else if (!message) fail(400, "문의 내용을 입력해 주세요");
+
+  const user = await getUser(env, req, false);
+  const row = await db.insert("bookings", {
+    booking_no: newOrderNo().replace(/^FG/, "R"),
+    user_id: user ? user.id : null,
+    kind,
+    product_id: product ? product.id : null,
+    product_name: product ? product.name : null,
+    date_from: dateFrom, date_to: dateTo, people,
+    name, tel, message: message || null,
+    status: "new",
+  });
+  // TODO: 새 예약 알림 (예: 텔레그램 봇, 카카오 알림톡) 을 여기에 붙이세요
+  console.log("BOOKING", row.booking_no, kind, product ? product.name : "", dateFrom || "");
+  return { booking: { booking_no: row.booking_no, created_at: row.created_at } };
+}
+
+async function adminBookings({ env, req, url, db }) {
+  await requireAdmin(env, req);
+  const st = url.searchParams.get("status") || "new";
+  let q;
+  if (st === "upcoming") q = `status=in.(new,contacted,confirmed)&date_from=gte.${kstToday()}&order=date_from.asc,created_at.asc`;
+  else if (st === "all") q = "order=created_at.desc";
+  else if (BK_STATUS.includes(st)) q = `status=eq.${st}&order=created_at.desc`;
+  else fail(400, "잘못된 상태");
+  const bookings = await db.select(`bookings?${q}&select=*&limit=300`);
+  return { bookings };
+}
+
+async function adminBookingUpdate({ env, req, body, db }) {
+  await requireAdmin(env, req);
+  if (!BK_STATUS.includes(body.status)) fail(400, "잘못된 상태");
+  const [u] = await db.update(`bookings?booking_no=eq.${enc(body.bookingNo || "")}`, {
+    status: body.status,
+    admin_memo: String(body.memo || "").slice(0, 500) || null,
+  });
+  if (!u) fail(404, "예약·문의를 찾을 수 없어요");
+  return { booking: u };
 }
 
 /* ---------------- 상품 후기 · 상품 문의 (관리자) ----------------

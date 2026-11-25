@@ -100,6 +100,29 @@ GitHub 웹에서 `data/products.json` 을 열고 ✏️(연필) → 수정 → *
 - **결제를 다시 켜려면** `"mode": "payment"` 로 바꾸면 됩니다. 결제 코드(네이버페이·카카오페이)는 지우지 않고 그대로 두었습니다.
 - 처음 한 번: `server/schema.sql` 의 **구매 문의(inquiries)** 부분을 Supabase SQL Editor 에서 실행하고, `server/worker.js` 를 Cloudflare 에 다시 붙여넣어 Deploy 해야 문의가 저장됩니다.
 
+### 예약·1:1 문의 (2026-11 추가)
+
+- 체험·숙박 상품(`"ticket": true`)은 '담기' 대신 **예약 문의** 버튼이 나오고, `reserve.html` 예약 폼으로 갑니다.
+  - 체험: 희망 날짜 · 인원 / 숙박: 체크인 · 체크아웃 · 인원 + 이름 · 휴대폰 · 문의 내용
+  - 푸터의 **예약·1:1 문의** 링크로 들어오면 상품과 상관없는 1:1 문의도 남길 수 있습니다.
+- 접수된 내용은 `admin.html` → **예약·문의** 에서 봅니다.
+  - **다가오는 예약** 탭: 오늘 이후 일정이 날짜 순으로 나옵니다 (취소·완료 제외).
+  - 상태: 새 문의 → 연락함 → 예약확정 → 완료 (또는 취소), 관리자 메모는 고객에게 안 보입니다.
+- 처음 한 번 (순서 중요 — 서버를 먼저 바꾼 뒤 사이트를 올리세요):
+  1. `server/2026-11_bookings.sql` 내용을 Supabase SQL Editor 에 붙여넣고 Run (schema.sql 의 예약·문의 부분과 같음)
+  2. `server/worker.js` 전체를 Cloudflare 워커에 다시 붙여넣고 Deploy
+  3. 그다음 GitHub 에 올리기
+
+### Supabase 자동 정지 막기 (2026-11 추가)
+
+Supabase 무료 플랜은 한동안 쓰지 않으면 프로젝트가 멈춥니다 (로그인·문의·관리자 모두 안 됨).
+워커가 하루 한 번 Supabase 에 작은 조회를 보내 멈추지 않게 합니다. 비용은 들지 않습니다.
+
+- Cloudflare → Workers & Pages → `fromganghwa-api` → **Settings → Trigger events(Triggers) → Cron Triggers → Add**
+- 일정: `0 0 * * *` (매일 한국시간 오전 9시) → 저장
+- 확인: 워커 **Logs** 에 다음 날 `KEEPALIVE ok` 가 찍히면 정상입니다.
+- 그래도 멈췄다면 Supabase 대시보드에서 **Resume project** 를 누르면 데이터는 그대로 돌아옵니다.
+
 ### 키 보관 원칙 (가장 중요)
 
 | 키 | 넣는 곳 | 공개돼도 되나 |
