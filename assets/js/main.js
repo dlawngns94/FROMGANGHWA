@@ -1108,10 +1108,12 @@
       </div>` : ""}
       </div>
       <div class="sum">
+        <div id="adminBox"></div>
         <form class="box" id="profForm" novalidate>
           <div class="box-h"><b>회원 정보</b></div>
           <div class="form stack">
             <div class="field"><label>로그인 계정</label><input value="${esc(loginLabel(USER))}" disabled></div>
+            <div class="field"><label>회원번호 <span class="mode-note">(관리자 지정용)</span></label><div class="mid-row"><input value="${esc(USER.email || "")}" readonly id="p-mid"><button type="button" class="btn ghost" data-copy-mid>복사</button></div></div>
             <div class="field"><label for="p-name">이름</label><input id="p-name" maxlength="30" value="${esc(PROFILE.name || "")}" autocomplete="name"></div>
             <div class="field"><label for="p-tel">휴대폰</label><input id="p-tel" maxlength="13" value="${esc(PROFILE.phone || "")}" inputmode="tel" autocomplete="tel"></div>
             <div class="field"><label for="p-addr">기본 배송지</label><input id="p-addr" maxlength="200" value="${esc(PROFILE.address || "")}" autocomplete="street-address"></div>
@@ -1129,6 +1131,22 @@
       if (er) return toast(`저장하지 못했어요: ${er.message}`);
       Object.assign(PROFILE, row); toast("회원 정보를 저장했어요");
     };
+    $("[data-copy-mid]", view).onclick = async () => {
+      const v = $("#p-mid").value;
+      try { await navigator.clipboard.writeText(v); } catch { $("#p-mid").select(); document.execCommand("copy"); }
+      toast("회원번호를 복사했어요");
+    };
+    // 관리자면 '관리자 페이지' 버튼 (화면을 먼저 그린 뒤 서버에 확인)
+    if (API()) api("/me", null, "GET").then(me => {
+      if (!me.isAdmin) return;
+      const c = me.counts || {}, total = (c.bookings || 0) + (c.inquiries || 0) + (c.questions || 0);
+      const parts = [c.bookings && `예약·문의 ${c.bookings}`, c.inquiries && `구매 문의 ${c.inquiries}`, c.questions && `상품 문의 ${c.questions}`].filter(Boolean);
+      $("#adminBox").innerHTML = `<div class="box admin-box">
+        <div class="box-h"><b>관리자</b><span class="pill">관리자 계정</span></div>
+        <a class="btn primary" href="admin.html">관리자 페이지${total ? `<span class="badge-n num">${total}</span>` : ""}</a>
+        <p class="mode-note">${parts.length ? `새로 들어온 건: ${parts.join(" · ")}` : "새로 들어온 예약·문의가 없어요"}</p>
+      </div>`;
+    }).catch(() => {});
     $("[data-withdraw]", view).onclick = async () => {
       if (!confirm("정말 탈퇴할까요?\n회원 정보는 바로 삭제되고, 주문·결제 기록은 전자상거래법에 따라 5년간 보관 후 삭제됩니다.")) return;
       try { await api("/me/withdraw"); } catch (err) { return toast(`탈퇴하지 못했어요: ${err.message}`); }

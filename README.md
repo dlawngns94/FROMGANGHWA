@@ -113,6 +113,18 @@ GitHub 웹에서 `data/products.json` 을 열고 ✏️(연필) → 수정 → *
   2. `server/worker.js` 전체를 Cloudflare 워커에 다시 붙여넣고 Deploy
   3. 그다음 GitHub 에 올리기
 
+### 관리자 지정하기 (마이페이지 → 관리자 페이지)
+
+관리자로 지정된 계정으로 로그인하면 **마이페이지 오른쪽 위에 '관리자 페이지' 버튼**이 생기고, 새로 들어온 예약·문의 건수가 빨간 숫자로 보입니다.
+
+1. 관리자로 쓸 사람이 카카오로 로그인 → **마이페이지 → 회원번호(관리자 지정용) → 복사**
+   (예: `kakao_1234567890@kakao.invalid`)
+2. Cloudflare → Workers & Pages → `fromganghwa-api` → **Settings → Variables and Secrets** → `ADMIN_EMAILS` 편집
+   - 여러 명이면 쉼표로 이어 붙입니다: `kakao_111@kakao.invalid,kakao_222@kakao.invalid`
+   - 저장(Deploy) 하면 바로 적용됩니다.
+3. 마이페이지를 새로고침하면 '관리자 페이지' 버튼이 보입니다.
+- 관리자에서 빼려면 `ADMIN_EMAILS` 에서 그 회원번호를 지우면 됩니다.
+
 ### Supabase 자동 정지 막기 (2026-11 추가)
 
 Supabase 무료 플랜은 한동안 쓰지 않으면 프로젝트가 멈춥니다 (로그인·문의·관리자 모두 안 됨).

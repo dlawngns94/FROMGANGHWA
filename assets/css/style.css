@@ -447,3 +447,14 @@ a.add{text-decoration:none}
 .bk-when{font-size:15px}
 .adm-sec{flex-wrap:wrap}
 .toolbar .sorts{flex-wrap:wrap}
+/* 마이페이지: 관리자 버튼 · 회원번호 */
+#adminBox:empty{display:none}
+#adminBox{margin-bottom:20px}
+.admin-box{display:grid;gap:10px;padding:0 20px 18px}
+.admin-box .box-h{margin-inline:-20px}
+.admin-box .btn{height:48px;min-height:48px;flex:none;gap:8px}
+.admin-box .mode-note{margin:0;text-align:center}
+.badge-n{min-width:22px;height:22px;padding-inline:7px;border-radius:11px;background:var(--sale);color:#fff;font-size:12px;font-weight:700;display:inline-grid;place-items:center}
+.mid-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
+.mid-row input{font-size:12px;color:var(--sub)}
+.mid-row .btn{height:44px;padding-inline:14px;flex:none}

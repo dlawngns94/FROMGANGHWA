@@ -15,6 +15,7 @@
  *  POST /orders/lookup       비회원 주문조회 (주문번호 + 휴대폰)
  *  POST /auth/naver          네이버 로그인 → Supabase 로그인 토큰 발급
  *  POST /auth/kakao          카카오 로그인 → Supabase 로그인 토큰 발급
+ *  GET  /me                  내 관리자 여부 (관리자면 새 예약·문의 건수도)
  *  POST /me/withdraw         회원 탈퇴
  *  GET  /admin/inquiries     관리자: 구매 문의 목록
  *  POST /admin/inquiry       관리자: 문의 상태·메모 저장
@@ -107,6 +108,7 @@ const ROUTES = {
   "POST /orders/lookup": lookup,
   "POST /auth/naver": naverLogin,
   "POST /auth/kakao": kakaoLogin,
+  "GET /me": meInfo,
   "POST /me/withdraw": withdraw,
   "POST /inquiry": inquiry,
   "POST /booking": booking,
@@ -506,12 +508,29 @@ async function withdraw({ env, req }) {
   return {};
 }
 
-/* ---------------- 관리자 ---------------- */
+/* ---------------- 관리자 ----------------
+ * 관리자 지정: Cloudflare 워커 변수 ADMIN_EMAILS 에 마이페이지의 '회원번호'(로그인 이메일)를 쉼표로 이어서 넣습니다.
+ */
+const isAdminEmail = (env, email) =>
+  !!email && String(env.ADMIN_EMAILS || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean).includes(email.toLowerCase());
+
 async function requireAdmin(env, req) {
   const user = await getUser(env, req);
-  const list = String(env.ADMIN_EMAILS || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
-  if (!user.email || !list.includes(user.email.toLowerCase())) fail(403, "관리자 권한이 없어요");
+  if (!isAdminEmail(env, user.email)) fail(403, "관리자 권한이 없어요");
   return user;
+}
+
+/* 마이페이지: 관리자면 '관리자 페이지' 버튼과 새로 들어온 건수를 보여 줌 */
+async function meInfo({ env, req, db }) {
+  const user = await getUser(env, req);
+  if (!isAdminEmail(env, user.email)) return { isAdmin: false };
+  const n = path => db.select(path + "&limit=100").then(r => r.length).catch(() => 0);
+  const [bookings, inquiries, questions] = await Promise.all([
+    n("bookings?status=eq.new&select=booking_no"),
+    n("inquiries?status=eq.new&select=inquiry_no"),
+    n("questions?answer=is.null&select=id"),
+  ]);
+  return { isAdmin: true, counts: { bookings, inquiries, questions } };
 }
 
 async function adminOrders({ env, req, url, db }) {
