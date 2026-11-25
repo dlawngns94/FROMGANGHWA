@@ -583,3 +583,26 @@ a.add{text-decoration:none}
 .demo-pay .mode-note{margin:0}
 .demo-pay .btn{height:46px;flex:none}
 .demo-link{margin-top:8px;gap:6px;height:44px;width:100%}
+/* 구매자 취소 요청 */
+.ord-h .st+.st{margin-left:4px}
+.creq{margin-top:10px;padding:10px 12px;border-radius:6px;font-size:13px;line-height:1.6}
+.creq small{color:var(--sub)}
+.creq.st-req{background:#fff3d6;color:#6b4600}
+.creq.st-ok{background:var(--soft);color:var(--sub)}
+.creq.st-no{background:#fde8e1;color:#8a2c12}
+.creq-act{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:10px}
+.creq-act .btn{height:38px;padding-inline:16px;flex:none}
+.creq-act .mode-note{margin:0}
+.creq-sheet{max-height:92vh;overflow-y:auto}
+.cr-reasons{border:0;padding:0;margin:14px 0 0;display:grid;gap:8px}
+.cr-reasons legend{font-weight:700;font-size:14px;margin-bottom:6px}
+.cr-reasons .req,#cr-need{font-size:11px;color:var(--sale);font-weight:700}
+.cr-reasons input{width:auto;height:auto}
+.cr-detail{display:grid;gap:6px;margin-top:12px;font-size:14px;font-weight:700}
+.cr-detail textarea{border:1px solid var(--line);border-radius:4px;padding:8px 10px;font:inherit;font-weight:400;resize:vertical;width:100%}
+.cr-notice{margin:12px 0;padding-left:18px;font-size:12px;color:var(--sub);line-height:1.6}
+.creq-adm{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center}
+@media (max-width:560px){.creq-adm{grid-template-columns:1fr 1fr}.creq-adm input{grid-column:1/-1}}
+/* 상품 상세: 관리자 테스트 결제 */
+.pd-demo{margin:14px 0 0}
+.creq-sheet .sheet-h{background:var(--brand);color:var(--brand-ink)}

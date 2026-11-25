@@ -14,6 +14,8 @@
  *  POST /test/pay            테스트 결제 (관리자 로그인 또는 TEST_MODE=true)
  *  POST /reserve/checkout    체험·숙박 결제 주문 만들기 (지금은 관리자 테스트 결제만)
  *  POST /orders/lookup       비회원 주문조회 (주문번호 + 휴대폰)
+ *  POST /orders/cancel-request 구매자 취소 요청 (결제완료 상태일 때만, 회원 본인 또는 주문번호+휴대폰)
+ *  POST /admin/cancel-reject 관리자: 구매자 취소 요청 거절 (사유 필수)
  *  POST /auth/naver          네이버 로그인 → Supabase 로그인 토큰 발급
  *  POST /auth/kakao          카카오 로그인 → Supabase 로그인 토큰 발급
  *  GET  /slots?product=      체험 회차와 남은 자리 (누구나)
@@ -121,6 +123,8 @@ const ROUTES = {
   "POST /test/pay": testPay,
   "POST /reserve/checkout": reserveCheckout,
   "POST /orders/lookup": lookup,
+  "POST /orders/cancel-request": cancelRequest,
+  "POST /admin/cancel-reject": adminCancelReject,
   "POST /auth/naver": naverLogin,
   "POST /auth/kakao": kakaoLogin,
   "GET /me": meInfo,
@@ -789,6 +793,43 @@ async function confirmPaidBooking(db, o) {
   return { booking_no: row.booking_no };
 }
 
+/* ---------------- 구매자 취소 요청 ----------------
+ * 결제완료(사장님이 '상품준비중'으로 넘기기 전)일 때만 요청할 수 있어요. 사장님이 관리자에서 승인(결제 취소·환불)하거나 거절합니다.
+ */
+const CANCEL_REASONS = ["단순 변심", "주문 실수 (상품·수량·옵션)", "배송·이용 일정이 맞지 않음", "다른 상품으로 다시 주문", "기타 (직접 입력)"];
+
+async function cancelRequest({ env, req, body, db }) {
+  const o = await getOrder(db, String(body.orderNo || "").trim().toUpperCase());
+  const user = await getUser(env, req, false);
+  const mine = (user && o.user_id && o.user_id === user.id) || (digits(body.phone).length >= 9 && digits(body.phone) === o.phone_digits);
+  if (!mine) fail(403, "주문한 분만 취소 요청을 할 수 있어요. 주문번호와 휴대폰 번호를 확인해 주세요");
+  if (o.status === "cancelled") fail(409, "이미 취소된 주문이에요");
+  if (o.status !== "paid") fail(409, "상품 준비가 시작되어 직접 취소 요청을 할 수 없어요. 고객행복센터로 연락해 주세요");
+  if (o.cancel_req && o.cancel_req.state === "requested") fail(409, "이미 취소 요청이 접수됐어요. 확인 후 처리해 드릴게요");
+  if (o.cancel_req && o.cancel_req.state === "rejected") fail(409, "취소 요청이 거절된 주문이에요. 고객행복센터로 연락해 주세요");
+  const reason = String(body.reason || "");
+  if (!CANCEL_REASONS.includes(reason)) fail(400, "취소 사유를 골라 주세요");
+  const detail = String(body.detail || "").trim().slice(0, 500);
+  if (reason.startsWith("기타") && !detail) fail(400, "취소 사유를 적어 주세요");
+  const [u] = await db.update(`orders?order_no=eq.${enc(o.order_no)}&status=eq.paid`, {
+    cancel_req: { state: "requested", reason, detail: detail || null, at: now(), by: user && o.user_id === user.id ? "member" : "guest" },
+  });
+  if (!u) fail(409, "주문 상태가 바뀌었어요. 새로고침해 주세요");
+  // TODO: 취소 요청 알림 (예: 텔레그램 봇, 카카오 알림톡) 을 여기에 붙이세요
+  console.log("CANCEL_REQUEST", o.order_no, reason);
+  return { order: publicOrder(u) };
+}
+
+async function adminCancelReject({ env, req, body, db }) {
+  await requireAdmin(env, req);
+  const o = await getOrder(db, body.orderNo);
+  if (!o.cancel_req || o.cancel_req.state !== "requested") fail(409, "처리할 취소 요청이 없어요");
+  const answer = String(body.answer || "").trim().slice(0, 300);
+  if (!answer) fail(400, "거절 사유를 적어 주세요 (구매자에게 보여요)");
+  const [u] = await db.update(`orders?order_no=eq.${enc(o.order_no)}`, { cancel_req: { ...o.cancel_req, state: "rejected", answer, answered_at: now() } });
+  return { order: u };
+}
+
 /* ---------------- 비회원 주문조회 ---------------- */
 async function lookup({ body, db }) {
   const orderNo = String(body.orderNo || "").trim().toUpperCase(), phone = digits(body.phone);
@@ -888,18 +929,21 @@ async function meInfo({ env, req, db }) {
   const user = await getUser(env, req);
   if (!isAdminEmail(env, user.email)) return { isAdmin: false };
   const n = path => db.select(path + "&limit=100").then(r => r.length).catch(() => 0);
-  const [bookings, inquiries, questions] = await Promise.all([
+  const [bookings, inquiries, questions, cancels] = await Promise.all([
     n("bookings?status=eq.new&select=booking_no"),
     n("inquiries?status=eq.new&select=inquiry_no"),
     n("questions?answer=is.null&select=id"),
+    n("orders?status=eq.paid&cancel_req->>state=eq.requested&select=order_no"),
   ]);
-  return { isAdmin: true, counts: { bookings, inquiries, questions } };
+  return { isAdmin: true, counts: { bookings, inquiries, questions, cancels } };
 }
 
 async function adminOrders({ env, req, url, db }) {
   await requireAdmin(env, req);
   const st = url.searchParams.get("status") || "paid";
-  const filter = st === "all" ? "status=neq.pending" : [...PAID, "cancelled"].includes(st) ? `status=eq.${st}` : fail(400, "잘못된 상태");
+  const filter = st === "all" ? "status=neq.pending"
+    : st === "cancelreq" ? "status=eq.paid&cancel_req->>state=eq.requested"
+    : [...PAID, "cancelled"].includes(st) ? `status=eq.${st}` : fail(400, "잘못된 상태");
   const orders = await db.select(`orders?${filter}&select=*&order=created_at.desc&limit=300`);
   return { orders };
 }
@@ -909,6 +953,7 @@ async function adminUpdate({ env, req, body, db }) {
   const o = await getOrder(db, body.orderNo);
   if (!PAID.includes(o.status)) fail(409, "결제 완료된 주문만 수정할 수 있어요");
   if (!ADMIN_STATUS.includes(body.status)) fail(400, "잘못된 상태");
+  if (o.cancel_req && o.cancel_req.state === "requested" && body.status !== o.status) fail(409, "구매자의 취소 요청이 있어요. 먼저 '취소 승인' 또는 '거절'을 해 주세요");
   const [u] = await db.update(`orders?order_no=eq.${enc(o.order_no)}`, {
     status: body.status,
     courier: String(body.courier || "").slice(0, 30) || null,
@@ -930,6 +975,10 @@ async function adminCancel({ env, req, body, db }) {
   }
   const [u] = await db.update(`orders?order_no=eq.${enc(o.order_no)}`, { status: "cancelled", cancelled_at: now() });
   if (o.booking) await db.update(`bookings?order_no=eq.${enc(o.order_no)}`, { status: "cancelled", admin_memo: `결제 취소 (주문 ${o.order_no})` });
+  if (o.cancel_req && o.cancel_req.state === "requested") {
+    const [v] = await db.update(`orders?order_no=eq.${enc(o.order_no)}`, { cancel_req: { ...o.cancel_req, state: "approved", answered_at: now() } });
+    return { order: v };
+  }
   return { order: u };
 }
 
@@ -984,7 +1033,7 @@ async function markPaid(db, o, paymentId) {
 }
 
 function publicOrder(o) {
-  const keys = ["order_no", "created_at", "status", "method", "product_name", "items", "goods", "discount", "ship_fee", "total", "tax_ex", "payment_id", "paid_at", "courier", "tracking_no"];
+  const keys = ["order_no", "created_at", "status", "method", "product_name", "items", "goods", "discount", "ship_fee", "total", "tax_ex", "payment_id", "paid_at", "courier", "tracking_no", "cancel_req", "booking"];
   return Object.fromEntries(keys.map(k => [k, o[k] ?? null]));
 }
 

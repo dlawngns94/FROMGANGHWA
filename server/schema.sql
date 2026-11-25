@@ -279,3 +279,8 @@ revoke all on public.stay_blocks from anon, authenticated;
 alter table public.orders add column if not exists booking jsonb;   -- { product_id, kind, slot_id, slot_time, date_from, date_to, people }
 alter table public.bookings add column if not exists order_no text references public.orders (order_no) on delete set null;
 create index if not exists bookings_order_idx on public.bookings (order_no);
+
+-- 구매자 취소 요청 (2026-11 추가) -------------------------------------------
+-- { state: requested|approved|rejected, reason, detail, at, by: member|guest, answer, answered_at }
+alter table public.orders add column if not exists cancel_req jsonb;
+create index if not exists orders_cancel_req_idx on public.orders ((cancel_req->>'state')) where cancel_req is not null;

@@ -368,11 +368,19 @@
               : `<button class="btn ghost" data-addqty>장바구니 담기</button>
               <button class="btn primary" data-buynow>${INQUIRY() ? "구매 문의" : "바로 구매"}</button>`}
             </div>
+            ${demoBox()}
           </div>
         </div>`;
     };
+    // 관리자 시연: 상세 화면에서 바로 테스트 결제
+    let isAdm = false;
+    const demoBox = () => !isAdm || p.soon ? "" : p.ticket
+      ? `<div class="demo-pay pd-demo"><div class="demo-h"><span class="pill">관리자 시연</span><b>테스트 결제</b></div><p class="mode-note">${p.price ? "예약 화면에서 일정을 고른 뒤 테스트 결제할 수 있어요." : "판매가가 없어 결제할 수 없어요. 상품 관리에서 판매가를 입력해 주세요."}</p>${p.price ? `<a class="btn primary" href="reserve.html?id=${p.id}">일정 고르고 테스트 결제</a>` : ""}</div>`
+      : `<div class="demo-pay pd-demo"><div class="demo-h"><span class="pill">관리자 시연</span><b>테스트 결제</b></div><p class="mode-note">실제 돈은 나가지 않아요.</p><button class="btn primary" data-demobuy>${p.price ? `${won(p.price * qty)}원 테스트 결제로 바로 구매` : "가격 문의 상품은 결제할 수 없어요"}</button></div>`;
+    amAdmin().then(ok => { isAdm = ok; if (ok) draw(); });
     top.addEventListener("click", e => {
       const t = e.target.closest("button"); if (!t) return;
+      if ("demobuy" in t.dataset) { if (!p.price) return toast("가격 문의 상품은 결제할 수 없어요"); store.set("fg_buynow", [{ id: p.id, qty }], sessionStorage); location.href = "order.html?from=buynow&pay=test"; return; }
       if (t.dataset.q) { qty = Math.max(1, Math.min(99, qty + +t.dataset.q)); draw(); }
       if ("addqty" in t.dataset) addToCart(p.id, qty);
       if ("buynow" in t.dataset) { store.set("fg_buynow", [{ id: p.id, qty }], sessionStorage); location.href = "order.html?from=buynow"; }
@@ -1104,13 +1112,63 @@
 
   /* ---------- 주문 카드 (마이페이지 · 비회원 조회 · 관리자) ---------- */
   const fmtDate = s => s ? new Date(s).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+  // 구매자 취소 요청 (결제완료 상태일 때만)
+  const CANCEL_REASONS = ["단순 변심", "주문 실수 (상품·수량·옵션)", "배송·이용 일정이 맞지 않음", "다른 상품으로 다시 주문", "기타 (직접 입력)"];
+  function cancelNote(o) {
+    const c = o.cancel_req; if (!c) return "";
+    if (c.state === "requested") return `<div class="creq st-req"><b>취소 요청 접수</b> · ${esc(c.reason)}${c.detail ? `<br><span>${esc(c.detail)}</span>` : ""}<br><small class="num">${fmtDate(c.at)} 요청 · 확인 후 처리해 드려요</small></div>`;
+    if (c.state === "approved") return `<div class="creq st-ok"><b>취소 완료</b> · 구매자 요청 (${esc(c.reason)})<br><small>결제한 수단으로 환불돼요${o.method === "test" ? " (테스트 결제라 실제 환불은 없어요)" : ""}</small></div>`;
+    if (c.state === "rejected") return `<div class="creq st-no"><b>취소 요청이 거절됐어요</b><br><span>${esc(c.answer || "")}</span><br><small>궁금한 점은 고객행복센터(${esc(SITE.cs.tel)})로 연락해 주세요</small></div>`;
+    return "";
+  }
+  const canCancelReq = o => o.status === "paid" && !o.cancel_req;
+  const cancelBtn = o => canCancelReq(o) ? `<div class="creq-act"><button class="btn ghost" data-creq="${esc(o.order_no)}">취소 요청</button><span class="mode-note">상품 준비가 시작되기 전까지 요청할 수 있어요</span></div>` : "";
+  // 취소 요청 창. done(order) 는 접수 뒤 호출
+  function openCancelForm(o, phone, done) {
+    const root = $("#modalRoot");
+    root.innerHTML = `<div class="scrim" id="scrim"><div class="sheet creq-sheet" role="dialog" aria-modal="true" aria-labelledby="crTitle">
+      <div class="sheet-h"><span id="crTitle">주문 취소 요청</span><button aria-label="닫기" data-close style="font-size:22px">×</button></div>
+      <div class="sheet-b">
+        <div class="r"><span>주문번호</span><span class="num">${esc(o.order_no)}</span></div>
+        <div class="r"><span>상품</span><span style="text-align:right">${esc(o.product_name || (o.items || []).map(i => i.name).join(", "))}</span></div>
+        <div class="r"><span>환불 예정 금액</span><b class="num">${won(o.total)}원</b></div>
+        <div class="r"><span>환불 방법</span><span>${o.method === "test" ? "테스트 결제 (실제 환불 없음)" : `결제한 수단(${esc(payName(o.method))})으로 환불`}</span></div>
+        <fieldset class="cr-reasons"><legend>취소 사유 <span class="req">필수</span></legend>
+          ${CANCEL_REASONS.map((r, i) => `<label class="chk"><input type="radio" name="cr-reason" value="${esc(r)}" ${i === 0 ? "" : ""}><span>${esc(r)}</span></label>`).join("")}
+        </fieldset>
+        <label class="cr-detail"><span>자세한 내용 <small id="cr-need">(선택)</small></span><textarea id="cr-detail" rows="3" maxlength="500" placeholder="사장님께 전할 말이 있으면 적어 주세요"></textarea></label>
+        <ul class="cr-notice">
+          <li>사장님이 확인한 뒤 결제를 취소하고 환불해 드려요. 카드사에 따라 환불까지 3~7일 걸릴 수 있어요.</li>
+          <li>상품 준비가 이미 시작됐다면 요청이 거절될 수 있어요.</li>
+          ${o.booking ? "<li>체험·숙박 예약은 취소가 승인되면 예약도 함께 취소돼요.</li>" : ""}
+        </ul>
+        <label class="chk agree-pay"><input type="checkbox" id="cr-agree"><span>[필수] 위 내용을 확인했고 주문 취소를 요청합니다.</span></label>
+      </div>
+      <div class="sheet-f"><button class="btn ghost" data-close>닫기</button><button class="btn primary" data-cr-send>취소 요청하기</button></div>
+    </div></div>`;
+    const close = () => { root.innerHTML = ""; root.onclick = root.onchange = null; };
+    root.onchange = e => { if (e.target.name === "cr-reason") $("#cr-need").textContent = e.target.value.startsWith("기타") ? "(필수)" : "(선택)"; };
+    root.onclick = async ev => {
+      if (ev.target.id === "scrim" || ev.target.closest("[data-close]")) return close();
+      const b = ev.target.closest("[data-cr-send]"); if (!b) return;
+      const r = $("[name=cr-reason]:checked", root), detail = $("#cr-detail").value.trim();
+      if (!r) return toast("취소 사유를 골라 주세요");
+      if (r.value.startsWith("기타") && !detail) { $("#cr-detail").focus(); return toast("취소 사유를 적어 주세요"); }
+      if (!$("#cr-agree").checked) return toast("확인 항목에 체크해 주세요");
+      b.disabled = true;
+      try { const { order } = await api("/orders/cancel-request", { orderNo: o.order_no, reason: r.value, detail, phone }); close(); toast("취소 요청이 접수됐어요"); done(order); }
+      catch (err) { toast(err.message); b.disabled = false; }
+    };
+  }
+
   function orderCard(o, extra = "") {
     return `<article class="ord">
-      <div class="ord-h"><span class="num">${fmtDate(o.created_at)}</span><span class="st st-${esc(o.status)}">${STATUS[o.status] || esc(o.status)}</span></div>
+      <div class="ord-h"><span class="num">${fmtDate(o.created_at)}</span><span class="st st-${esc(o.status)}">${STATUS[o.status] || esc(o.status)}</span>${o.cancel_req && o.cancel_req.state === "requested" ? `<span class="st st-q-new">취소 요청</span>` : ""}</div>
       <div class="ord-no num">주문번호 ${esc(o.order_no)}</div>
       <ul class="ord-items">${(o.items || []).map(i => `<li><span>${esc(i.name)}</span><span class="num">${i.qty}개</span></li>`).join("")}</ul>
       <div class="ord-f"><span>${esc(payName(o.method))}${o.discount ? ` · 할인 ${won(o.discount)}원` : ""}</span><b class="num">${won(o.total)}원</b></div>
       ${o.tracking_no ? `<div class="ord-track">${esc(o.courier || "택배")} 운송장 <span class="num">${esc(o.tracking_no)}</span></div>` : ""}
+      ${cancelNote(o)}
       ${extra}
     </article>`;
   }
@@ -1254,7 +1312,7 @@
         <div class="ord-list">${inqs && inqs.length ? inqs.map(q => inquiryCard(q)).join("") : `<p class="empty">아직 구매 문의 내역이 없어요.</p>`}</div>
       </div>` : ""}
       ${showOrders ? `<div class="box"><div class="box-h"><b>주문 내역</b><span class="num" style="color:var(--sub)">${orders ? orders.length : 0}건</span></div>
-        <div class="ord-list">${error ? `<p class="empty">주문 내역을 불러오지 못했어요.</p>` : orders.length ? orders.map(o => orderCard(o)).join("") : `<p class="empty">아직 주문 내역이 없어요.</p>`}</div>
+        <div class="ord-list">${error ? `<p class="empty">주문 내역을 불러오지 못했어요.</p>` : orders.length ? orders.map(o => orderCard(o, cancelBtn(o))).join("") : `<p class="empty">아직 주문 내역이 없어요.</p>`}</div>
       </div>` : ""}
       </div>
       <div class="sum">
@@ -1281,6 +1339,11 @@
       if (er) return toast(`저장하지 못했어요: ${er.message}`);
       Object.assign(PROFILE, row); toast("회원 정보를 저장했어요");
     };
+    view.addEventListener("click", e => {
+      const b = e.target.closest("[data-creq]"); if (!b) return;
+      const o = (orders || []).find(x => x.order_no === b.dataset.creq);
+      if (o) openCancelForm(o, "", () => pageMypage(view));
+    });
     $("[data-copy-mid]", view).onclick = async () => {
       const v = $("#p-mid").value;
       try { await navigator.clipboard.writeText(v); } catch { $("#p-mid").select(); document.execCommand("copy"); }
@@ -1289,11 +1352,11 @@
     // 관리자면 '관리자 페이지' 버튼 (화면을 먼저 그린 뒤 서버에 확인)
     if (API()) api("/me", null, "GET").then(me => {
       if (!me.isAdmin) return;
-      const c = me.counts || {}, total = (c.bookings || 0) + (c.inquiries || 0) + (c.questions || 0);
-      const parts = [c.bookings && `예약·문의 ${c.bookings}`, c.inquiries && `구매 문의 ${c.inquiries}`, c.questions && `상품 문의 ${c.questions}`].filter(Boolean);
+      const c = me.counts || {}, total = (c.bookings || 0) + (c.inquiries || 0) + (c.questions || 0) + (c.cancels || 0);
+      const parts = [c.cancels && `취소 요청 ${c.cancels}`, c.bookings && `예약·문의 ${c.bookings}`, c.inquiries && `구매 문의 ${c.inquiries}`, c.questions && `상품 문의 ${c.questions}`].filter(Boolean);
       $("#adminBox").innerHTML = `<div class="box admin-box">
         <div class="box-h"><b>관리자</b><span class="pill">관리자 계정</span></div>
-        <a class="btn primary" href="admin.html">관리자 페이지${total ? `<span class="badge-n num">${total}</span>` : ""}</a>
+        <a class="btn primary" href="admin.html${c.cancels ? "?sec=order&tab=cancelreq" : ""}">관리자 페이지${total ? `<span class="badge-n num">${total}</span>` : ""}</a>
         <p class="mode-note">${parts.length ? `새로 들어온 건: ${parts.join(" · ")}` : "새로 들어온 예약·문의가 없어요"}</p>
       </div>`;
     }).catch(() => {});
@@ -1330,8 +1393,9 @@
       out.innerHTML = `<p class="loading" style="padding-block:24px">조회하는 중…</p>`;
       try {
         const { order: o } = await api("/orders/lookup", { orderNo, phone });
-        out.innerHTML = `<div class="box ord-list">${orderCard(o, `<dl class="ord-ship"><dt>받는 분</dt><dd>${esc(o.ship.name)}</dd><dt>주소</dt><dd>${esc(o.ship.addr)}</dd></dl>`)}</div>
-          <p class="mode-note" style="text-align:center">주문 취소·교환은 고객행복센터(${esc(SITE.cs.tel)}) 또는 ${esc(SITE.company.email)} 로 문의해 주세요.</p>`;
+        out.innerHTML = `<div class="box ord-list">${orderCard(o, `<dl class="ord-ship"><dt>받는 분</dt><dd>${esc(o.ship.name)}</dd><dt>주소</dt><dd>${esc(o.ship.addr)}</dd></dl>${cancelBtn(o)}`)}</div>
+          <p class="mode-note" style="text-align:center">상품 준비가 시작된 뒤의 취소·교환은 고객행복센터(${esc(SITE.cs.tel)}) 또는 ${esc(SITE.company.email)} 로 문의해 주세요.</p>`;
+        out.onclick = e => { if (e.target.closest("[data-creq]")) openCancelForm(o, phone, () => $("#lkForm").requestSubmit()); };
       } catch (err) {
         out.innerHTML = `<p class="empty" style="padding-block:24px">${esc(err.message)}</p>`;
       }
@@ -1589,7 +1653,7 @@
       slots: { name: "체험 일정", custom: admSlots },
       stay: { name: "숙박 달력", custom: admStay },
       products: { name: "상품 관리", custom: admProducts },
-      order: { name: "주문", tabs: { paid: "결제완료", preparing: "상품준비중", shipped: "배송중", delivered: "배송완료", cancelled: "취소", all: "전체" }, first: "paid", api: "orders" }
+      order: { name: "주문", tabs: { paid: "결제완료", cancelreq: "취소 요청", preparing: "상품준비중", shipped: "배송중", delivered: "배송완료", cancelled: "취소", all: "전체" }, first: "paid", api: "orders" }
     };
     let section = SECTIONS[params.get("sec")] ? params.get("sec") : INQUIRY() ? "booking" : "order", status = SECTIONS[section].first, rows = [];
     if (SECTIONS[section].tabs && SECTIONS[section].tabs[params.get("tab")]) status = params.get("tab");
@@ -1620,7 +1684,12 @@
         <dt>요청</dt><dd>${esc(o.ship.memo || "")}</dd>
         <dt>결제번호</dt><dd class="num">${esc(o.payment_id || "")}</dd>
       </dl>
-      ${o.status === "cancelled" || o.status === "pending" ? "" : `<div class="adm-edit" data-no="${esc(o.order_no)}">
+      ${o.cancel_req && o.cancel_req.state === "requested" && o.status === "paid" ? `<div class="adm-edit creq-adm" data-no="${esc(o.order_no)}">
+        <p class="mode-note" style="margin:0;grid-column:1/-1">구매자가 취소를 요청했어요. 승인하면 결제가 전액 취소(환불)되고${o.booking ? " 예약도 취소돼요" : "요"}. 거절하면 아래 사유가 구매자에게 보여요.</p>
+        <input data-f="answer" placeholder="거절 사유 (예: 이미 발송 준비가 끝났어요)" maxlength="300">
+        <button class="btn ghost" data-reject>거절</button>
+        <button class="btn primary" data-cancel>취소 승인 (환불)</button>
+      </div>` : o.status === "cancelled" || o.status === "pending" ? "" : `<div class="adm-edit" data-no="${esc(o.order_no)}">
         <select data-f="status">${["paid", "preparing", "shipped", "delivered"].map(s => `<option value="${s}" ${o.status === s ? "selected" : ""}>${STATUS[s]}</option>`).join("")}</select>
         <input data-f="courier" placeholder="택배사" value="${esc(o.courier || "")}">
         <input data-f="tracking" placeholder="운송장 번호" value="${esc(o.tracking_no || "")}" inputmode="numeric">
@@ -1710,11 +1779,16 @@
           return;
         }
         const orderNo = box.dataset.no;
+        if (e.target.closest("[data-reject]")) {
+          if (!f("answer")) { $("[data-f=answer]", box).focus(); return toast("거절 사유를 적어 주세요"); }
+          await api("/admin/cancel-reject", { orderNo, answer: f("answer") });
+          toast("취소 요청을 거절했어요"); return load();
+        }
         if (e.target.closest("[data-save]")) {
           await api("/admin/order", { orderNo, status: f("status"), courier: f("courier"), trackingNo: f("tracking") });
           toast("저장했어요"); load();
         } else if (e.target.closest("[data-cancel]")) {
-          if (!confirm(`${orderNo} 주문을 전액 결제 취소할까요?\n고객에게 바로 환불되며 되돌릴 수 없어요.`)) return;
+          if (!confirm(`${orderNo} 주문을 전액 결제 취소할까요?\n고객에게 바로 환불되며 되돌릴 수 없어요.${box.classList.contains("creq-adm") ? "\n(구매자 취소 요청 승인)" : ""}`)) return;
           await api("/admin/cancel", { orderNo });
           toast("결제를 취소했어요"); load();
         }
