@@ -11,7 +11,8 @@
  *  POST /naverpay/approve    네이버페이 결제 승인
  *  POST /kakaopay/ready      카카오페이 결제창 준비
  *  POST /kakaopay/approve    카카오페이 결제 승인
- *  POST /test/pay            테스트 결제 (TEST_MODE=true 일 때만)
+ *  POST /test/pay            테스트 결제 (관리자 로그인 또는 TEST_MODE=true)
+ *  POST /reserve/checkout    체험·숙박 결제 주문 만들기 (지금은 관리자 테스트 결제만)
  *  POST /orders/lookup       비회원 주문조회 (주문번호 + 휴대폰)
  *  POST /auth/naver          네이버 로그인 → Supabase 로그인 토큰 발급
  *  POST /auth/kakao          카카오 로그인 → Supabase 로그인 토큰 발급
@@ -44,7 +45,7 @@
  *  SUPABASE_URL                https://xxxx.supabase.co
  *  SUPABASE_SERVICE_KEY     🔒 Supabase service_role(또는 secret) 키
  *  ADMIN_EMAILS                관리자 로그인 이메일 (여러 개면 쉼표로)
- *  TEST_MODE                   true 면 가맹점 키 없이 '테스트 결제' 주문 허용 (실오픈 때 지우기)
+ *  TEST_MODE                   true 면 누구나 '테스트 결제' 가능 (넣지 않으면 관리자 계정만 테스트 결제 가능)
  *  NAVERPAY_MODE               development | production
  *  NAVERPAY_PARTNER_ID / NAVERPAY_CLIENT_ID / NAVERPAY_CHAIN_ID(그룹형만)
  *  NAVERPAY_CLIENT_SECRET   🔒
@@ -118,6 +119,7 @@ const ROUTES = {
   "POST /kakaopay/ready": kakaopayReady,
   "POST /kakaopay/approve": kakaopayApprove,
   "POST /test/pay": testPay,
+  "POST /reserve/checkout": reserveCheckout,
   "POST /orders/lookup": lookup,
   "POST /auth/naver": naverLogin,
   "POST /auth/kakao": kakaoLogin,
@@ -152,7 +154,7 @@ const ROUTES = {
 async function checkout({ env, req, ctx, body, db }) {
   const { items, ship, method } = body;
   if (!["naverpay", "kakaopay", "test"].includes(method)) fail(400, "결제 수단을 확인해 주세요");
-  if (method === "test" && env.TEST_MODE !== "true") fail(403, "테스트 결제가 꺼져 있어요. 결제 수단 설정을 확인해 주세요");
+  if (method === "test" && !(await canTestPay(env, req))) fail(403, "테스트 결제는 관리자 계정으로 로그인했을 때만 쓸 수 있어요");
   const s = cleanShip(ship);
   const user = await getUser(env, req, false);
   const { products, site } = await catalog(env);
@@ -166,6 +168,7 @@ async function checkout({ env, req, ctx, body, db }) {
     if (prof && !prev.length) rate = perk;
   }
   const a = calcAmount(items, products, site.shipping, rate);
+  if (a.lines.some(l => (products.find(p => p.id === l.id) || {}).ticket)) fail(400, "체험·숙박은 예약 화면에서 일정을 골라 결제해 주세요");
   const order = await db.insert("orders", {
     order_no: newOrderNo(),
     user_id: user ? user.id : null,
@@ -243,6 +246,43 @@ const BK_STATUS = ["new", "contacted", "confirmed", "done", "cancelled"];
 const kstToday = () => new Date(Date.now() + 9 * 36e5).toISOString().slice(0, 10);
 const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s + "T00:00:00Z"));
 
+/* 체험·숙박 예약 내용 검사 (예약 문의 · 테스트 결제 공통) — 남은 자리·예약 불가 날짜까지 확인 */
+async function checkReservation(env, db, body) {
+  let kind, product, dateFrom = null, dateTo = null, people, slot = null;
+  const { products } = await catalog(env);
+  product = products.find(p => p.id === body.productId && p.ticket && !p.soon);
+  if (!product) fail(400, "예약할 수 없는 상품이에요");
+  kind = product.cat === "stay" ? "stay" : "craft";
+  people = Math.floor(Number(body.people));
+  if (!(people >= 1 && people <= 99)) fail(400, "인원을 확인해 주세요");
+  if (kind === "craft" && body.slotId) {
+    // 관리자가 만든 회차를 고른 경우: 남은 자리 확인
+    const [s] = await db.select(`slots?id=eq.${Number(body.slotId) || 0}&product_id=eq.${enc(product.id)}&select=*`);
+    if (!s || s.closed) fail(400, "선택한 일정은 예약할 수 없어요. 다른 일정을 골라 주세요");
+    if (!slotOpen(s)) fail(400, "지난 일정이에요. 다른 일정을 골라 주세요");
+    const left = s.capacity - ((await usedBySlot(db, [s.id]))[s.id] || 0);
+    if (people > left) fail(400, left > 0 ? `남은 자리가 ${left}명이에요. 인원을 줄이거나 다른 일정을 골라 주세요` : "마감된 일정이에요. 다른 일정을 골라 주세요");
+    slot = s; dateFrom = s.slot_date;
+  } else {
+    if (kind === "craft") {
+      const open = await db.select(`slots?product_id=eq.${enc(product.id)}&closed=eq.false&slot_date=gte.${kstToday()}&select=id&limit=1`);
+      if (open.length) fail(400, "체험 일정을 골라 주세요");
+    }
+    dateFrom = String(body.dateFrom || "");
+    if (!isDate(dateFrom)) fail(400, kind === "stay" ? "체크인 날짜를 선택해 주세요" : "희망 날짜를 선택해 주세요");
+    if (dateFrom < kstToday()) fail(400, "지난 날짜는 선택할 수 없어요");
+  }
+  if (kind === "stay") {
+    dateTo = String(body.dateTo || "");
+    if (!isDate(dateTo)) fail(400, "체크아웃 날짜를 선택해 주세요");
+    if (dateTo <= dateFrom) fail(400, "체크아웃은 체크인 다음 날 이후로 선택해 주세요");
+    if (dateTo > addDays(dateFrom, 30)) fail(400, "한 번에 30박까지 문의할 수 있어요");
+    const busy = await stayUnavailable(db, product.id, dateFrom, addDays(dateTo, -1));
+    if (busy.size) fail(400, `${[...busy].sort()[0]} 은(는) 이미 예약이 차 있어요. 다른 날짜를 골라 주세요`);
+  }
+  return { kind, product, dateFrom, dateTo, people, slot };
+}
+
 async function booking({ env, req, body, db }) {
   if (body.website) return { booking: { booking_no: "IGNORED" } };   // 자동 등록 봇 (숨김 칸을 채움)
   const name = String(body.name || "").trim().slice(0, 30);
@@ -253,37 +293,7 @@ async function booking({ env, req, body, db }) {
 
   let kind = "general", product = null, dateFrom = null, dateTo = null, people = null, slot = null;
   if (body.productId) {
-    const { products } = await catalog(env);
-    product = products.find(p => p.id === body.productId && p.ticket && !p.soon);
-    if (!product) fail(400, "예약할 수 없는 상품이에요");
-    kind = product.cat === "stay" ? "stay" : "craft";
-    people = Math.floor(Number(body.people));
-    if (!(people >= 1 && people <= 99)) fail(400, "인원을 확인해 주세요");
-    if (kind === "craft" && body.slotId) {
-      // 관리자가 만든 회차를 고른 경우: 남은 자리 확인
-      const [s] = await db.select(`slots?id=eq.${Number(body.slotId) || 0}&product_id=eq.${enc(product.id)}&select=*`);
-      if (!s || s.closed) fail(400, "선택한 일정은 예약할 수 없어요. 다른 일정을 골라 주세요");
-      if (!slotOpen(s)) fail(400, "지난 일정이에요. 다른 일정을 골라 주세요");
-      const left = s.capacity - ((await usedBySlot(db, [s.id]))[s.id] || 0);
-      if (people > left) fail(400, left > 0 ? `남은 자리가 ${left}명이에요. 인원을 줄이거나 다른 일정을 골라 주세요` : "마감된 일정이에요. 다른 일정을 골라 주세요");
-      slot = s; dateFrom = s.slot_date;
-    } else {
-      if (kind === "craft") {
-        const open = await db.select(`slots?product_id=eq.${enc(product.id)}&closed=eq.false&slot_date=gte.${kstToday()}&select=id&limit=1`);
-        if (open.length) fail(400, "체험 일정을 골라 주세요");
-      }
-      dateFrom = String(body.dateFrom || "");
-      if (!isDate(dateFrom)) fail(400, kind === "stay" ? "체크인 날짜를 선택해 주세요" : "희망 날짜를 선택해 주세요");
-      if (dateFrom < kstToday()) fail(400, "지난 날짜는 선택할 수 없어요");
-    }
-    if (kind === "stay") {
-      dateTo = String(body.dateTo || "");
-      if (!isDate(dateTo)) fail(400, "체크아웃 날짜를 선택해 주세요");
-      if (dateTo <= dateFrom) fail(400, "체크아웃은 체크인 다음 날 이후로 선택해 주세요");
-      if (dateTo > addDays(dateFrom, 30)) fail(400, "한 번에 30박까지 문의할 수 있어요");
-      const busy = await stayUnavailable(db, product.id, dateFrom, addDays(dateTo, -1));
-      if (busy.size) fail(400, `${[...busy].sort()[0]} 은(는) 이미 예약이 차 있어요. 다른 날짜를 골라 주세요`);
-    }
+    ({ kind, product, dateFrom, dateTo, people, slot } = await checkReservation(env, db, body));
   } else if (!message) fail(400, "문의 내용을 입력해 주세요");
 
   const user = await getUser(env, req, false);
@@ -358,7 +368,7 @@ async function publicSlots({ url, db }) {
   const to = addDays(kstToday(), 120);
   const slots = (await db.select(`slots?product_id=eq.${enc(product)}&closed=eq.false&slot_date=gte.${kstToday()}&slot_date=lte.${to}&select=id,slot_date,slot_time,capacity&order=slot_date.asc,slot_time.asc&limit=500`)).filter(slotOpen);
   const used = await usedBySlot(db, slots.map(s => s.id));
-  return { today: kstToday(), slots: slots.map(s => ({ id: s.id, date: s.slot_date, time: s.slot_time, left: Math.max(0, s.capacity - (used[s.id] || 0)) })) };
+  return { today: kstToday(), slots: slots.map(s => ({ id: s.id, date: s.slot_date, time: s.slot_time, capacity: s.capacity, left: Math.max(0, s.capacity - (used[s.id] || 0)) })) };
 }
 
 async function adminSlots({ env, req, url, db }) {
@@ -712,11 +722,71 @@ async function kakaopayApprove({ env, body, db }) {
 }
 
 /* ---------------- 테스트 결제 ---------------- */
-async function testPay({ env, body, db }) {
-  if (env.TEST_MODE !== "true") fail(403, "테스트 결제가 꺼져 있어요");
+async function testPay({ env, req, body, db }) {
+  if (!(await canTestPay(env, req))) fail(403, "테스트 결제는 관리자 계정으로 로그인했을 때만 쓸 수 있어요");
   const o = await getOrder(db, body.orderNo);
   if (o.status !== "pending" || o.method !== "test") fail(409, "이미 처리된 주문입니다");
-  return { order: publicOrder(await markPaid(db, o, `TEST-${Date.now()}`)) };
+  // 체험·숙박: 결제 직전에 자리·날짜를 한 번 더 확인
+  if (o.booking) await checkReservation(env, db, bookingBody(o));
+  const u = await markPaid(db, o, `TEST-${Date.now()}`);
+  const booking = o.booking ? await confirmPaidBooking(db, u) : null;
+  return { order: publicOrder(u), booking };
+}
+
+/* 테스트 결제 허용: Cloudflare 변수 TEST_MODE=true 이거나, 관리자 계정으로 로그인한 경우 */
+async function canTestPay(env, req) {
+  if (env.TEST_MODE === "true") return true;
+  const user = await getUser(env, req, false);
+  return !!user && isAdminEmail(env, user.email);
+}
+
+/* ---------------- 체험·숙박 결제 ----------------
+ * 예약 화면에서 일정·인원(숙박은 날짜)을 고르면 금액을 계산해 결제 주문을 만듭니다.
+ * 체험: 1인 가격 × 인원 / 숙박: 1박 가격 × 박 수. 결제가 끝나면 예약(bookings)을 '예약확정'으로 만들어요.
+ */
+const bookingBody = o => ({ productId: o.booking.product_id, slotId: o.booking.slot_id, dateFrom: o.booking.date_from, dateTo: o.booking.date_to, people: o.booking.people });
+
+async function reserveCheckout({ env, req, body, db }) {
+  if (!(await canTestPay(env, req))) fail(403, "체험·숙박 결제는 아직 준비 중이에요. 예약 문의를 남겨 주세요");
+  const name = String(body.name || "").trim().slice(0, 30), tel = String(body.tel || "").trim().slice(0, 13);
+  if (!name) fail(400, "이름을 입력해 주세요");
+  if (!/^0\d{8,10}$/.test(digits(tel))) fail(400, "휴대폰 번호를 확인해 주세요");
+  const r = await checkReservation(env, db, body);
+  if (!r.product.price) fail(400, "판매가가 없는 상품이에요. 관리자 > 상품 관리에서 판매가를 입력해 주세요");
+  const qty = r.kind === "stay" ? Math.round((Date.parse(r.dateTo) - Date.parse(r.dateFrom)) / 864e5) : r.people;
+  const { products, site } = await catalog(env);
+  const a = calcAmount([{ id: r.product.id, qty }], products, site.shipping, 0);
+  const when = r.kind === "stay" ? `${r.dateFrom}~${r.dateTo} ${qty}박 ${r.people}명` : `${r.dateFrom}${r.slot ? " " + r.slot.slot_time : ""} ${r.people}명`;
+  const user = await getUser(env, req, false);
+  const order = await db.insert("orders", {
+    order_no: newOrderNo(),
+    user_id: user ? user.id : null,
+    status: "pending",
+    method: "test",
+    items: a.lines,
+    product_name: `${r.product.name} (${when})`,
+    goods: a.goods, discount: 0, ship_fee: 0, total: a.total, tax_ex: a.taxEx,
+    ship: { name, tel, addr: r.kind === "stay" ? "숙박 예약 (배송 없음)" : "체험 예약 (배송 없음)", memo: String(body.message || "").trim().slice(0, 100) },
+    phone_digits: digits(tel),
+    booking: { product_id: r.product.id, kind: r.kind, slot_id: r.slot ? r.slot.id : null, slot_time: r.slot ? r.slot.slot_time : null, date_from: r.dateFrom, date_to: r.dateTo, people: r.people },
+  });
+  return { order: publicOrder(order) };
+}
+
+async function confirmPaidBooking(db, o) {
+  const b = o.booking, s = o.ship || {};
+  const row = await db.insert("bookings", {
+    booking_no: newOrderNo().replace(/^FG/, "R"),
+    user_id: o.user_id || null,
+    kind: b.kind, product_id: b.product_id, product_name: (o.items[0] || {}).name || null,
+    date_from: b.date_from, date_to: b.date_to, people: b.people,
+    slot_id: b.slot_id, slot_time: b.slot_time,
+    name: s.name, tel: s.tel, message: s.memo || null,
+    status: "confirmed",
+    admin_memo: `결제 완료 (주문 ${o.order_no}, ${o.method === "test" ? "테스트 결제" : o.method})`,
+    order_no: o.order_no,
+  });
+  return { booking_no: row.booking_no };
 }
 
 /* ---------------- 비회원 주문조회 ---------------- */
@@ -859,6 +929,7 @@ async function adminCancel({ env, req, body, db }) {
     if (!r.ok) fail(402, r.data.error_message || r.data.msg || "카카오페이 취소 실패");
   }
   const [u] = await db.update(`orders?order_no=eq.${enc(o.order_no)}`, { status: "cancelled", cancelled_at: now() });
+  if (o.booking) await db.update(`bookings?order_no=eq.${enc(o.order_no)}`, { status: "cancelled", admin_memo: `결제 취소 (주문 ${o.order_no})` });
   return { order: u };
 }
 

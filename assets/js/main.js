@@ -550,18 +550,19 @@
       if (!cart.length) { view.innerHTML = `<div class="wrap"><div class="page-title"><h2>장바구니</h2></div><p class="empty">장바구니에 담긴 상품이 없어요.<br><br><a class="btn ghost" style="display:inline-flex" href="shop.html">상품 보러 가기</a></p></div>`; return; }
       view.innerHTML = `<div class="wrap"><div class="page-title"><h2>장바구니</h2></div><div class="two">
         <div class="box"><div class="box-h"><b>담은 상품 <span class="num">${cartCount()}</span>개</b><button data-clear style="color:var(--sub);font-size:13px">전체 삭제</button></div>${cart.map(l => lineRow(l, true)).join("")}</div>
-        ${summaryBox(totals(cart), `<a class="btn primary" href="order.html">${INQUIRY() ? "구매 문의하기" : "주문하기"}</a>`)}
+        ${summaryBox(totals(cart), `<a class="btn primary" href="order.html">${INQUIRY() ? "구매 문의하기" : "주문하기"}</a>${INQUIRY() ? `<div id="cartDemo"></div>` : ""}`)}
       </div></div>`;
     };
+    const demo = () => amAdmin().then(ok => { const d = $("#cartDemo"); if (ok && d) d.innerHTML = `<a class="btn ghost demo-link" href="order.html?pay=test"><span class="pill">관리자 시연</span>테스트 결제로 주문하기</a>`; });
     view.addEventListener("click", e => {
       const t = e.target.closest("button"); if (!t) return;
       if (t.dataset.lq) { const l = cart.find(x => x.id === t.dataset.lq); l.qty = Math.max(1, Math.min(99, l.qty + +t.dataset.d)); }
       else if (t.dataset.del) cart = cart.filter(x => x.id !== t.dataset.del);
       else if ("clear" in t.dataset) cart = [];
       else return;
-      saveCart(); draw();
+      saveCart(); draw(); demo();
     });
-    draw();
+    draw(); demo();
   }
 
   /* ---------- 페이지: 주문서 + 결제 ---------- */
@@ -576,7 +577,9 @@
     // 결제창에서 돌아온 경우
     if (params.get("resultCode")) return naverReturn(view);
     if (params.get("kp")) return kakaoReturn(view);
-    if (INQUIRY()) return pageInquiry(view);
+    // 결제 보류 중에도 관리자는 order.html?pay=test 로 테스트 결제 시연 가능 (서버가 관리자인지 다시 확인)
+    const demoPay = INQUIRY() && params.get("pay") === "test";
+    if (INQUIRY() && !demoPay) return pageInquiry(view);
 
     const fromBuyNow = params.get("from") === "buynow";
     const lines = (fromBuyNow ? store.get("fg_buynow", [], sessionStorage) : cart).filter(l => byId(l.id)).map(l => ({ ...l }));
@@ -586,7 +589,7 @@
     const saved = me ? { name: PROFILE.name, tel: PROFILE.phone, addr: PROFILE.address } : store.get("fg_ship", {});
     const perk = Number(SITE.member && SITE.member.firstOrderDiscount) || 0;
     const here = "order.html" + (fromBuyNow ? "?from=buynow" : "");
-    view.innerHTML = `<div class="wrap"><div class="page-title"><h2>주문서</h2></div><div class="two">
+    view.innerHTML = `<div class="wrap"><div class="page-title"><h2>주문서</h2>${demoPay ? `<p><span class="pill">관리자 시연</span> 테스트 결제 화면이에요. 실제 돈은 나가지 않아요.</p>` : ""}</div><div class="two">
       <div style="display:grid;gap:20px;min-width:0">
         ${!me && SB ? `<div class="notice">비회원으로 주문하고 있어요. 주문번호와 휴대폰 번호로 주문을 조회할 수 있어요.${perk ? ` <a href="login.html?next=${encodeURIComponent(here)}">로그인하고 첫 주문 ${perk}% 할인 받기 ›</a>` : ` <a href="login.html?next=${encodeURIComponent(here)}">로그인 ›</a>`}</div>` : ""}
         <div class="box"><div class="box-h"><b>주문 상품</b><span class="num" style="color:var(--sub)">${lines.reduce((s, l) => s + l.qty, 0)}개</span></div>${lines.map(l => lineRow(l, false)).join("")}</div>
@@ -723,6 +726,10 @@
     };
   }
 
+  // 관리자 계정인지 서버에 한 번만 확인 (테스트 결제 시연 버튼용)
+  let ADMIN_P = null;
+  const amAdmin = () => ADMIN_P || (ADMIN_P = isMember() && API() ? api("/me", null, "GET").then(r => !!r.isAdmin).catch(() => false) : Promise.resolve(false));
+
   /* ---------- 페이지: 예약·1:1 문의 ---------- */
   const ymdLocal = (d = new Date()) => new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
   const addDays = (ymd, n) => { const d = new Date(ymd + "T00:00:00"); d.setDate(d.getDate() + n); return ymdLocal(d); };
@@ -768,6 +775,7 @@
         </div>
         <label class="chk agree-pay"><input type="checkbox" id="r-agree"><span>[필수] 예약·상담을 위한 <a href="privacy.html" target="_blank">개인정보 수집·이용</a>(이름, 휴대폰, 문의 내용 · 상담 완료 후 1년 보관)에 동의합니다.</span></label>
         <button class="btn primary" id="rsvBtn" type="button">문의 보내기</button>
+        <div id="r-pay"></div>
       </form>
       <div style="height:48px"></div></div>`;
 
@@ -777,13 +785,26 @@
     let mode = "date", slots = [], slotId = 0, busy = new Set(), calYm = today.slice(0, 7), ci = "", co = "", seq = 0;
     const pplMax = () => { const s = slots.find(x => x.id === slotId); return s ? s.left : 99; };
     const pplHtml = n => `<div class="field"><label>인원</label><div><div class="qty"><button type="button" data-p="-1" aria-label="인원 빼기">−</button><span class="num" id="r-ppl">${n}</span><button type="button" data-p="1" aria-label="인원 더하기">+</button></div><span class="mode-note" style="margin-left:8px">명</span></div></div>`;
+    let slotDate = "", slotYm = "";
     const drawSlots = () => {
       const byDate = {};
-      slots.forEach(s => (byDate[s.date] = byDate[s.date] || []).push(s));
-      $("#r-slots").innerHTML = Object.entries(byDate).map(([d, list]) => `<div class="slot-day"><b>${dayLabel(d)}</b><div>${list.map(s =>
-        `<button type="button" class="slot-btn" data-slot="${s.id}" aria-pressed="${slotId === s.id}" ${s.left ? "" : "disabled"}>${esc(s.time)}<small>${s.left ? `${s.left}자리` : "마감"}</small></button>`).join("")}</div></div>`).join("");
-      const s = slots.find(x => x.id === slotId);
-      $("#r-when").textContent = s ? `${dayLabel(s.date)} ${s.time} · 남은 자리 ${s.left}명` : "";
+      slots.forEach(x => (byDate[x.date] = byDate[x.date] || []).push(x));
+      const months = [...new Set(slots.map(x => x.date.slice(0, 7)))];
+      if (!slotDate) { const f = slots.find(x => x.left > 0) || slots[0]; slotDate = f.date; slotYm = f.date.slice(0, 7); }
+      const cell = d => {
+        const l = byDate[d]; if (!l) return { disabled: true };
+        const open = l.some(x => x.left > 0);
+        return { cls: (open ? "avail" : "full") + (d === slotDate ? " ci" : ""), disabled: !open };
+      };
+      $("#r-slots").innerHTML = `<div class="cal"><div class="cal-h"><button type="button" data-scal="-1" ${slotYm <= months[0] ? "disabled" : ""} aria-label="이전 달">‹</button><b>${slotYm.slice(0, 4)}년 ${+slotYm.slice(5)}월</b><button type="button" data-scal="1" ${slotYm >= months[months.length - 1] ? "disabled" : ""} aria-label="다음 달">›</button></div>
+        ${monthGrid(slotYm, cell)}
+        <p class="cal-legend"><span class="lg avail"></span>예약 가능 <span class="lg full"></span>마감</p></div>
+        <div class="slot-times">${slotDate && byDate[slotDate] ? `<b>${dayLabel(slotDate)}</b><div>${byDate[slotDate].map(x =>
+          `<button type="button" class="slot-btn" data-slot="${x.id}" aria-pressed="${slotId === x.id}" ${x.left ? "" : "disabled"}>${esc(x.time)}<small>${x.left ? `남은 자리 ${x.left} / ${x.capacity || x.left}` : "정원 마감"}</small></button>`).join("")}</div>`
+          : `<p class="mode-note">달력에서 예약 가능한(초록) 날짜를 골라 주세요</p>`}</div>`;
+      const sl = slots.find(x => x.id === slotId);
+      $("#r-when").textContent = sl ? `${dayLabel(sl.date)} ${sl.time} · 남은 자리 ${sl.left}명` : "시간을 골라 주세요";
+      payPaint();
     };
     const drawCal = () => {
       const inRange = d => ci && co && d > ci && d < co;
@@ -797,6 +818,7 @@
         ${monthGrid(calYm, cell)}
         <p class="cal-legend"><span class="lg off"></span>예약 불가 <span class="lg ci"></span>선택한 날</p>`;
       $("#r-from").value = ci; $("#r-to").value = co;
+      setTimeout(payPaint);
       $("#r-when").textContent = ci && co ? `${dayLabel(ci)} → ${dayLabel(co)} · ${nightsOf(ci, co)}박` : ci ? `체크인 ${dayLabel(ci)} · 체크아웃 날짜를 골라 주세요` : "체크인 날짜를 골라 주세요";
     };
     const drawPick = async () => {
@@ -808,7 +830,7 @@
         return;
       }
       const stay = isStay(p);
-      const head = `<div class="rsv-prod">${visual(p)}<div><b>${esc(p.name)}</b><span>${esc(p.sub)}</span><a href="product.html?id=${p.id}">상품 자세히 보기 ›</a></div></div>`;
+      const head = `<div class="rsv-prod">${visual(p)}<div><b>${esc(p.name)}</b><span>${esc(p.sub)}</span>${p.price ? `<span class="rsv-price num">${stay ? "1박" : "1인"} ${won(p.price)}원</span>` : ""}<a href="product.html?id=${p.id}">상품 자세히 보기 ›</a></div></div>`;
       const dateInputs = `<div class="field"><label for="r-from">${stay ? "체크인" : "희망 날짜"}</label><input type="date" id="r-from" min="${today}" value=""></div>
         ${stay ? `<div class="field"><label for="r-to">체크아웃</label><input type="date" id="r-to" min="${addDays(today, 1)}" value=""></div>` : ""}`;
       msg.placeholder = stay ? "도착 예정 시간, 요청 사항, 궁금한 점을 적어 주세요 (선택)" : "단체 여부, 궁금한 점을 적어 주세요 (선택)";
@@ -818,7 +840,7 @@
       if (my !== seq) return;   // 그사이 다른 상품을 고름
       if (!stay && data && data.slots && data.slots.length) {
         mode = "slot"; slots = data.slots;
-        pick.innerHTML = head + `<div class="field top"><label>체험 일정</label><div id="r-slots" class="slot-list"></div></div><input type="hidden" id="r-from">` + pplHtml(1) + `<p class="mode-note rsv-note" id="r-when"></p>`;
+        slotDate = ""; pick.innerHTML = head + `<div class="field top"><label>체험 일정</label><div id="r-slots" class="slot-cal"></div></div><input type="hidden" id="r-from">` + pplHtml(1) + `<p class="mode-note rsv-note" id="r-when"></p>`;
         drawSlots();
       } else if (stay && data && data.unavailable) {
         mode = "cal"; busy = new Set(data.unavailable); calYm = today.slice(0, 7);
@@ -829,6 +851,7 @@
       }
     };
     const showWhen = () => {
+      payPaint();
       if (mode !== "date") return;
       const f = $("#r-from"), t = $("#r-to"), w = $("#r-when"); if (!f || !w) return;
       if (t) { t.min = f.value ? addDays(f.value, 1) : addDays(today, 1); if (f.value && (!t.value || t.value <= f.value)) t.value = addDays(f.value, 1); }
@@ -839,7 +862,7 @@
     pick.addEventListener("input", showWhen);
     pick.addEventListener("click", e => {
       const b = e.target.closest("[data-p]");
-      if (b) { const el = $("#r-ppl"); el.textContent = Math.max(1, Math.min(pplMax(), +el.textContent + +b.dataset.p)); if (+b.dataset.p > 0 && +el.textContent >= pplMax() && mode === "slot") toast(`이 일정은 ${pplMax()}명까지 예약할 수 있어요`); return; }
+      if (b) { const el = $("#r-ppl"); el.textContent = Math.max(1, Math.min(pplMax(), +el.textContent + +b.dataset.p)); if (+b.dataset.p > 0 && +el.textContent >= pplMax() && mode === "slot") toast(`이 일정은 ${pplMax()}명까지 예약할 수 있어요`); return payPaint(); }
       const sb = e.target.closest("[data-slot]");
       if (sb) {
         slotId = +sb.dataset.slot; const s = slots.find(x => x.id === slotId);
@@ -847,9 +870,12 @@
         const el = $("#r-ppl"); if (+el.textContent > s.left) el.textContent = s.left;
         return drawSlots();
       }
+      const sc = e.target.closest("[data-scal]");
+      if (sc) { slotYm = ymAdd(slotYm, +sc.dataset.scal); return drawSlots(); }
       const cb = e.target.closest("[data-cal]");
       if (cb) { calYm = ymAdd(calYm, +cb.dataset.cal); return drawCal(); }
       const db = e.target.closest("[data-day]");
+      if (db && mode === "slot") { slotDate = db.dataset.day; slotId = 0; return drawSlots(); }
       if (db && mode === "cal") {
         const d = db.dataset.day;
         if (ci && !co && d > ci && ![...busy].some(x => x >= ci && x < d)) co = d;
@@ -858,25 +884,76 @@
       }
     });
 
-    $("#rsvBtn").onclick = async () => {
+    // 입력값 모으기 (예약 문의 · 테스트 결제 공통). 빠진 게 있으면 안내하고 null
+    const collect = () => {
       const p = byId(sel), stay = p && isStay(p);
       const body = { productId: p ? p.id : "", name: $("#r-name").value.trim(), tel: $("#r-tel").value.trim(), message: msg.value.trim(), website: $("#r-web").value };
+      const no = m => { toast(m); return null; };
       if (p) {
-        if (!$("#r-ppl")) return toast("일정을 불러오는 중이에요. 잠시만 기다려 주세요");
-        if (mode === "slot" && !slotId) return toast("체험 일정을 골라 주세요");
-        if (mode === "cal" && !(ci && co)) return toast(ci ? "체크아웃 날짜를 골라 주세요" : "체크인 날짜를 골라 주세요");
+        if (!$("#r-ppl")) return no("일정을 불러오는 중이에요. 잠시만 기다려 주세요");
+        if (mode === "slot" && !slotId) return no("체험 일정을 골라 주세요");
+        if (mode === "cal" && !(ci && co)) return no(ci ? "체크아웃 날짜를 골라 주세요" : "체크인 날짜를 골라 주세요");
         if (mode === "slot") body.slotId = slotId;
         body.dateFrom = $("#r-from").value; body.people = +$("#r-ppl").textContent;
-        if (!body.dateFrom) { $("#r-from").focus(); return toast(stay ? "체크인 날짜를 선택해 주세요" : "희망 날짜를 선택해 주세요"); }
-        if (body.dateFrom < today) { $("#r-from").focus(); return toast("지난 날짜는 선택할 수 없어요"); }
-        if (stay) {
-          body.dateTo = $("#r-to").value;
-          if (!body.dateTo || body.dateTo <= body.dateFrom) { $("#r-to").focus(); return toast("체크아웃 날짜를 확인해 주세요"); }
-        }
-      } else if (!body.message) { msg.focus(); return toast("문의 내용을 입력해 주세요"); }
-      if (!body.name) { $("#r-name").focus(); return toast("이름을 입력해 주세요"); }
-      if (!/^0\d{8,10}$/.test(body.tel.replace(/\D/g, ""))) { $("#r-tel").focus(); return toast("휴대폰 번호를 확인해 주세요"); }
-      if (!$("#r-agree").checked) return toast("개인정보 수집·이용에 동의해 주세요");
+        if (!body.dateFrom) return no(stay ? "체크인 날짜를 선택해 주세요" : "희망 날짜를 선택해 주세요");
+        if (body.dateFrom < today) return no("지난 날짜는 선택할 수 없어요");
+        if (stay) { body.dateTo = $("#r-to").value; if (!body.dateTo || body.dateTo <= body.dateFrom) return no("체크아웃 날짜를 확인해 주세요"); }
+      } else if (!body.message) { msg.focus(); return no("문의 내용을 입력해 주세요"); }
+      if (!body.name) { $("#r-name").focus(); return no("이름을 입력해 주세요"); }
+      if (!/^0\d{8,10}$/.test(body.tel.replace(/\D/g, ""))) { $("#r-tel").focus(); return no("휴대폰 번호를 확인해 주세요"); }
+      if (!$("#r-agree").checked) return no("개인정보 수집·이용에 동의해 주세요");
+      return body;
+    };
+
+    // 관리자 시연: 테스트 결제 (손님에게는 안 보임)
+    let isAdm = false;
+    function payQty() {
+      const p = byId(sel); if (!p || !p.ticket) return 0;
+      if (isStay(p)) { const f = $("#r-from"), t = $("#r-to"); return f && t && f.value && t.value > f.value ? nightsOf(f.value, t.value) : 0; }
+      return $("#r-ppl") ? +$("#r-ppl").textContent : 0;
+    }
+    function payPaint() {
+      const box = $("#r-pay"); if (!box || !isAdm) return;
+      const p = byId(sel);
+      if (!p) { box.innerHTML = ""; return; }
+      const q = payQty(), amt = p.price * q;
+      box.innerHTML = `<div class="demo-pay"><div class="demo-h"><span class="pill">관리자 시연</span><b>테스트 결제</b></div>
+        ${p.price ? `<p class="mode-note">${isStay(p) ? `1박 ${won(p.price)}원 × ${q || "-"}박` : `1인 ${won(p.price)}원 × ${q}명`} · 실제 돈은 나가지 않아요. 결제하면 예약이 바로 '예약확정'돼요.</p>
+          <button class="btn primary" type="button" data-testpay ${amt ? "" : "disabled"}>${amt ? `${won(amt)}원 테스트 결제하기` : isStay(p) ? "체크인·체크아웃을 골라 주세요" : "일정을 골라 주세요"}</button>`
+        : `<p class="mode-note">판매가가 없어 결제할 수 없어요. 관리자 &gt; 상품 관리에서 판매가를 입력해 주세요.</p>`}</div>`;
+    }
+    amAdmin().then(ok => { isAdm = ok; payPaint(); });
+    view.addEventListener("click", async e => {
+      const t = e.target.closest("[data-testpay]"); if (!t) return;
+      const body = collect(); if (!body) return;
+      t.disabled = true;
+      try {
+        const { order } = await api("/reserve/checkout", body);
+        openSimulator(order, "test", async () => {
+          try {
+            const r = await api("/test/pay", { orderNo: order.order_no });
+            document.title = `테스트 결제 완료 | ${SITE.name}`;
+            view.innerHTML = `<div class="wrap"><div class="done">
+              <div class="ok"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>
+              <h2>테스트 결제가 완료되었어요</h2>
+              <p style="color:var(--sub);margin:0">실제 결제는 일어나지 않았어요. 예약은 '예약확정'으로 저장됐어요.</p>
+              <dl>
+                <dt>주문번호</dt><dd class="num"><b>${esc(r.order.order_no)}</b></dd>
+                ${r.booking ? `<dt>예약번호</dt><dd class="num">${esc(r.booking.booking_no)}</dd>` : ""}
+                <dt>상품</dt><dd>${esc(r.order.product_name)}</dd>
+                <dt>결제금액</dt><dd class="num"><b>${won(r.order.total)}원</b></dd>
+              </dl>
+              <div class="d-actions"><a class="btn ghost" href="admin.html?sec=order">관리자 › 주문에서 상태 변경·결제 취소</a><a class="btn primary" href="admin.html?sec=booking&tab=confirmed">예약 확인</a></div>
+            </div></div>`;
+            window.scrollTo({ top: 0 });
+          } catch (err) { toast(err.message); payPaint(); }
+        }, () => payPaint());
+      } catch (err) { toast(err.message); t.disabled = false; }
+    });
+
+    $("#rsvBtn").onclick = async () => {
+      const p = byId(sel), stay = p && isStay(p);
+      const body = collect(); if (!body) return;
       if (!API()) return toast("예약·문의 접수는 준비 중이에요. 고객행복센터로 연락해 주세요");
       const btn = $("#rsvBtn"); btn.disabled = true;
       try {
@@ -971,12 +1048,12 @@
   }
 
   /* 결제 시뮬레이터 — 가맹점 키가 없을 때 결제 흐름만 확인 (실결제 없음) */
-  function openSimulator(order, method, onOk) {
-    const root = $("#modalRoot"), p = PAYS[method];
+  function openSimulator(order, method, onOk, onCancel) {
+    const root = $("#modalRoot"), p = PAYS[method] || { name: "테스트", cls: "primary" };
     root.innerHTML = `<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="simTitle">
       <div class="sheet-h ${p.cls}"><span id="simTitle">${p.name} 결제 시뮬레이터</span><button aria-label="닫기" data-close style="color:inherit;font-size:22px">×</button></div>
       <div class="sheet-b">
-        <div class="warn">테스트 화면입니다. 실제 ${p.name} 결제창이 아니며 결제가 일어나지 않습니다.${API() ? " 주문은 '테스트 결제'로 저장됩니다." : ""}</div>
+        <div class="warn">${PAYS[method] ? `테스트 화면입니다. 실제 ${p.name} 결제창이 아니며 결제가 일어나지 않습니다.` : "관리자 시연용 테스트 결제입니다. 실제 결제는 일어나지 않습니다."}${API() ? " 주문은 '테스트 결제'로 저장됩니다." : ""}</div>
         <div class="r"><span>주문번호</span><span class="num">${esc(order.order_no)}</span></div>
         <div class="r"><span>상품</span><span style="text-align:right">${esc(order.product_name)}</span></div>
         <div class="r"><span>과세 / 면세</span><span class="num">${won(order.total - order.tax_ex)} / ${won(order.tax_ex)}원</span></div>
@@ -989,8 +1066,8 @@
     const close = () => { root.innerHTML = ""; root.onclick = null; document.removeEventListener("keydown", onKey); };
     document.addEventListener("keydown", onKey);
     root.onclick = ev => {
-      if (ev.target.id === "scrim" || ev.target.closest("[data-close]")) return close();
-      if (ev.target.closest("[data-simfail]")) { close(); return toast("결제가 취소되었어요"); }
+      if (ev.target.id === "scrim" || ev.target.closest("[data-close]")) { close(); return onCancel && onCancel(); }
+      if (ev.target.closest("[data-simfail]")) { close(); if (onCancel) onCancel(); return toast("결제가 취소되었어요"); }
       if (ev.target.closest("[data-simok]")) { close(); onOk(); }
     };
   }
@@ -1514,7 +1591,8 @@
       products: { name: "상품 관리", custom: admProducts },
       order: { name: "주문", tabs: { paid: "결제완료", preparing: "상품준비중", shipped: "배송중", delivered: "배송완료", cancelled: "취소", all: "전체" }, first: "paid", api: "orders" }
     };
-    let section = INQUIRY() ? "booking" : "order", status = SECTIONS[section].first, rows = [];
+    let section = SECTIONS[params.get("sec")] ? params.get("sec") : INQUIRY() ? "booking" : "order", status = SECTIONS[section].first, rows = [];
+    if (SECTIONS[section].tabs && SECTIONS[section].tabs[params.get("tab")]) status = params.get("tab");
     const BK_STATUS = { new: "새 문의", contacted: "연락함", confirmed: "예약확정", done: "완료", cancelled: "취소" };
     const BK_KIND = { craft: "체험", stay: "숙박", general: "1:1 문의" };
     const bkRow = b => `<article class="ord">
@@ -1535,6 +1613,8 @@
     </article>`;
     const orderRow = o => orderCard(o, `
       <dl class="ord-ship">
+        ${o.method === "test" ? `<dt>결제</dt><dd><span class="pill">테스트 결제</span> 실제 돈은 오가지 않아요</dd>` : ""}
+        ${o.booking ? `<dt>예약</dt><dd><b>${o.booking.kind === "stay" ? `${dayLabel(o.booking.date_from)} → ${dayLabel(o.booking.date_to)} · ${nightsOf(o.booking.date_from, o.booking.date_to)}박` : dayLabel(o.booking.date_from) + (o.booking.slot_time ? " " + o.booking.slot_time : "")}</b> · ${o.booking.people}명${o.status === "cancelled" ? " (결제 취소로 예약도 취소됨)" : ""}</dd>` : ""}
         <dt>받는 분</dt><dd>${esc(o.ship.name)} · <span class="num">${esc(o.ship.tel)}</span></dd>
         <dt>주소</dt><dd>${esc(o.ship.addr)}</dd>
         <dt>요청</dt><dd>${esc(o.ship.memo || "")}</dd>

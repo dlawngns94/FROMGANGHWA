@@ -563,3 +563,23 @@ a.add{text-decoration:none}
 .adm-bar>.btn{flex:none;height:42px;padding-inline:18px}
 .slot-adm.closed{opacity:1}
 .slot-adm.closed>:not(.acts){opacity:.5}
+/* 체험 예약: 혜화담 방식 (달력 → 시간) */
+.slot-cal{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:16px;align-items:start}
+.cal-d.avail{background:#e3f3e8;color:#1f6b3a;font-weight:700}
+.cal-d.full{background:var(--soft);color:var(--mute);text-decoration:line-through}
+.cal-d.avail.ci{background:var(--brand);color:var(--brand-ink)}
+.lg.avail{background:#e3f3e8;border:1px solid #9ccfae}
+.lg.full{background:var(--soft);border:1px solid var(--line)}
+.slot-times{display:grid;gap:8px;align-content:start}
+.slot-times>b{font-size:14px}
+.slot-times>div{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px}
+.slot-times .slot-btn{min-width:0;padding:10px}
+.rsv-price{color:var(--ink)!important;font-weight:700;font-size:14px!important}
+@media (max-width:640px){.slot-cal{grid-template-columns:1fr}}
+/* 관리자 시연: 테스트 결제 */
+#r-pay:empty{display:none}
+.demo-pay{margin:0 20px 20px;padding:14px 16px;border:1px dashed var(--brand);border-radius:8px;background:var(--brand-soft);display:grid;gap:8px}
+.demo-h{display:flex;align-items:center;gap:8px}
+.demo-pay .mode-note{margin:0}
+.demo-pay .btn{height:46px;flex:none}
+.demo-link{margin-top:8px;gap:6px;height:44px;width:100%}
