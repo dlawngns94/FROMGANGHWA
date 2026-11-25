@@ -730,7 +730,18 @@
   const nightsOf = (a, b) => Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 864e5);
   const bookingWhen = b => b.kind === "stay"
     ? `${dayLabel(b.date_from)} → ${dayLabel(b.date_to)} · ${nightsOf(b.date_from, b.date_to)}박`
-    : dayLabel(b.date_from);
+    : dayLabel(b.date_from) + (b.slot_time ? ` ${b.slot_time}` : "");
+  const ymAdd = (ym, n) => { const d = new Date(ym + "-01T00:00:00"); d.setMonth(d.getMonth() + n); return ymdLocal(d).slice(0, 7); };
+  // 한 달 달력: cell(날짜) → { cls, disabled, html }
+  function monthGrid(ym, cell) {
+    const first = new Date(ym + "-01T00:00:00"), days = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    let h = `<div class="cal-grid">${[..."일월화수목금토"].map((d, i) => `<b class="${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${d}</b>`).join("")}${"<span></span>".repeat(first.getDay())}`;
+    for (let i = 1; i <= days; i++) {
+      const d = `${ym}-${String(i).padStart(2, "0")}`, c = cell(d) || {};
+      h += `<button type="button" class="cal-d ${c.cls || ""}" data-day="${d}" ${c.disabled ? "disabled" : ""}><span class="n">${i}</span>${c.html || ""}</button>`;
+    }
+    return h + "</div>";
+  }
 
   function pageReserve(view) {
     document.title = `예약·1:1 문의 | ${SITE.name}`;
@@ -761,23 +772,64 @@
       <div style="height:48px"></div></div>`;
 
     const pick = $("#r-pick"), msg = $("#r-msg");
-    const drawPick = () => {
-      const p = byId(sel);
+    // 체험: 관리자가 만든 일정(회차)이 있으면 그중에서 고르고, 없으면 희망 날짜를 직접 입력
+    // 숙박: 달력에서 예약 불가 날짜를 피해 체크인·체크아웃을 고름
+    let mode = "date", slots = [], slotId = 0, busy = new Set(), calYm = today.slice(0, 7), ci = "", co = "", seq = 0;
+    const pplMax = () => { const s = slots.find(x => x.id === slotId); return s ? s.left : 99; };
+    const pplHtml = n => `<div class="field"><label>인원</label><div><div class="qty"><button type="button" data-p="-1" aria-label="인원 빼기">−</button><span class="num" id="r-ppl">${n}</span><button type="button" data-p="1" aria-label="인원 더하기">+</button></div><span class="mode-note" style="margin-left:8px">명</span></div></div>`;
+    const drawSlots = () => {
+      const byDate = {};
+      slots.forEach(s => (byDate[s.date] = byDate[s.date] || []).push(s));
+      $("#r-slots").innerHTML = Object.entries(byDate).map(([d, list]) => `<div class="slot-day"><b>${dayLabel(d)}</b><div>${list.map(s =>
+        `<button type="button" class="slot-btn" data-slot="${s.id}" aria-pressed="${slotId === s.id}" ${s.left ? "" : "disabled"}>${esc(s.time)}<small>${s.left ? `${s.left}자리` : "마감"}</small></button>`).join("")}</div></div>`).join("");
+      const s = slots.find(x => x.id === slotId);
+      $("#r-when").textContent = s ? `${dayLabel(s.date)} ${s.time} · 남은 자리 ${s.left}명` : "";
+    };
+    const drawCal = () => {
+      const inRange = d => ci && co && d > ci && d < co;
+      const cell = d => {
+        const past = d < today, off = busy.has(d);
+        // 체크인을 고른 뒤에는 체크아웃 날(그날 밤은 안 묵음)은 막힌 날이어도 고를 수 있음
+        const canOut = ci && !co && d > ci && ![...busy].some(b => b >= ci && b < d);
+        return { cls: [off ? "off" : "", d === ci ? "ci" : "", d === co ? "co" : "", inRange(d) ? "in" : ""].join(" "), disabled: past || (off && !canOut) };
+      };
+      $("#r-cal").innerHTML = `<div class="cal-h"><button type="button" data-cal="-1" ${calYm <= today.slice(0, 7) ? "disabled" : ""} aria-label="이전 달">‹</button><b>${calYm.replace("-", "년 ").replace(/^(\d+년 )0?/, "$1")}월</b><button type="button" data-cal="1" aria-label="다음 달">›</button></div>
+        ${monthGrid(calYm, cell)}
+        <p class="cal-legend"><span class="lg off"></span>예약 불가 <span class="lg ci"></span>선택한 날</p>`;
+      $("#r-from").value = ci; $("#r-to").value = co;
+      $("#r-when").textContent = ci && co ? `${dayLabel(ci)} → ${dayLabel(co)} · ${nightsOf(ci, co)}박` : ci ? `체크인 ${dayLabel(ci)} · 체크아웃 날짜를 골라 주세요` : "체크인 날짜를 골라 주세요";
+    };
+    const drawPick = async () => {
+      const p = byId(sel), my = ++seq;
+      slotId = 0; ci = co = ""; mode = "date";
       if (!p) {
         pick.innerHTML = "";
         msg.placeholder = "궁금하신 점을 자유롭게 적어 주세요";
         return;
       }
       const stay = isStay(p);
-      pick.innerHTML = `
-        <div class="rsv-prod">${visual(p)}<div><b>${esc(p.name)}</b><span>${esc(p.sub)}</span><a href="product.html?id=${p.id}">상품 자세히 보기 ›</a></div></div>
-        <div class="field"><label for="r-from">${stay ? "체크인" : "희망 날짜"}</label><input type="date" id="r-from" min="${today}" value=""></div>
-        ${stay ? `<div class="field"><label for="r-to">체크아웃</label><input type="date" id="r-to" min="${addDays(today, 1)}" value=""></div>` : ""}
-        <div class="field"><label>인원</label><div><div class="qty"><button type="button" data-p="-1" aria-label="인원 빼기">−</button><span class="num" id="r-ppl">${stay ? 2 : 1}</span><button type="button" data-p="1" aria-label="인원 더하기">+</button></div><span class="mode-note" style="margin-left:8px">명</span></div></div>
-        <p class="mode-note rsv-note" id="r-when"></p>`;
-      msg.placeholder = stay ? "도착 예정 시간, 요청 사항, 궁금한 점을 적어 주세요 (선택)" : "희망 시간대, 단체 여부, 궁금한 점을 적어 주세요 (선택)";
+      const head = `<div class="rsv-prod">${visual(p)}<div><b>${esc(p.name)}</b><span>${esc(p.sub)}</span><a href="product.html?id=${p.id}">상품 자세히 보기 ›</a></div></div>`;
+      const dateInputs = `<div class="field"><label for="r-from">${stay ? "체크인" : "희망 날짜"}</label><input type="date" id="r-from" min="${today}" value=""></div>
+        ${stay ? `<div class="field"><label for="r-to">체크아웃</label><input type="date" id="r-to" min="${addDays(today, 1)}" value=""></div>` : ""}`;
+      msg.placeholder = stay ? "도착 예정 시간, 요청 사항, 궁금한 점을 적어 주세요 (선택)" : "단체 여부, 궁금한 점을 적어 주세요 (선택)";
+      pick.innerHTML = head + `<p class="loading" style="padding-block:12px">일정을 불러오는 중이에요</p>`;
+      let data = null;
+      if (API()) try { data = await api(`/${stay ? "stay" : "slots"}?product=${encodeURIComponent(p.id)}`, null, "GET"); } catch { data = null; }
+      if (my !== seq) return;   // 그사이 다른 상품을 고름
+      if (!stay && data && data.slots && data.slots.length) {
+        mode = "slot"; slots = data.slots;
+        pick.innerHTML = head + `<div class="field top"><label>체험 일정</label><div id="r-slots" class="slot-list"></div></div><input type="hidden" id="r-from">` + pplHtml(1) + `<p class="mode-note rsv-note" id="r-when"></p>`;
+        drawSlots();
+      } else if (stay && data && data.unavailable) {
+        mode = "cal"; busy = new Set(data.unavailable); calYm = today.slice(0, 7);
+        pick.innerHTML = head + `<div class="field top"><label>숙박 일정</label><div id="r-cal" class="cal"></div></div><input type="hidden" id="r-from"><input type="hidden" id="r-to">` + pplHtml(2) + `<p class="mode-note rsv-note" id="r-when"></p>`;
+        drawCal();
+      } else {
+        pick.innerHTML = head + dateInputs + pplHtml(stay ? 2 : 1) + `<p class="mode-note rsv-note" id="r-when"></p>`;
+      }
     };
     const showWhen = () => {
+      if (mode !== "date") return;
       const f = $("#r-from"), t = $("#r-to"), w = $("#r-when"); if (!f || !w) return;
       if (t) { t.min = f.value ? addDays(f.value, 1) : addDays(today, 1); if (f.value && (!t.value || t.value <= f.value)) t.value = addDays(f.value, 1); }
       w.textContent = !f.value ? "" : t && t.value ? `${dayLabel(f.value)} → ${dayLabel(t.value)} · ${nightsOf(f.value, t.value)}박` : t ? "" : dayLabel(f.value);
@@ -786,14 +838,34 @@
     $("#r-what").onchange = e => { sel = e.target.value; drawPick(); history.replaceState(null, "", sel ? `reserve.html?id=${sel}` : "reserve.html?type=general"); };
     pick.addEventListener("input", showWhen);
     pick.addEventListener("click", e => {
-      const b = e.target.closest("[data-p]"); if (!b) return;
-      const el = $("#r-ppl"); el.textContent = Math.max(1, Math.min(99, +el.textContent + +b.dataset.p));
+      const b = e.target.closest("[data-p]");
+      if (b) { const el = $("#r-ppl"); el.textContent = Math.max(1, Math.min(pplMax(), +el.textContent + +b.dataset.p)); if (+b.dataset.p > 0 && +el.textContent >= pplMax() && mode === "slot") toast(`이 일정은 ${pplMax()}명까지 예약할 수 있어요`); return; }
+      const sb = e.target.closest("[data-slot]");
+      if (sb) {
+        slotId = +sb.dataset.slot; const s = slots.find(x => x.id === slotId);
+        $("#r-from").value = s.date;
+        const el = $("#r-ppl"); if (+el.textContent > s.left) el.textContent = s.left;
+        return drawSlots();
+      }
+      const cb = e.target.closest("[data-cal]");
+      if (cb) { calYm = ymAdd(calYm, +cb.dataset.cal); return drawCal(); }
+      const db = e.target.closest("[data-day]");
+      if (db && mode === "cal") {
+        const d = db.dataset.day;
+        if (ci && !co && d > ci && ![...busy].some(x => x >= ci && x < d)) co = d;
+        else if (!busy.has(d)) { ci = d; co = ""; }
+        return drawCal();
+      }
     });
 
     $("#rsvBtn").onclick = async () => {
       const p = byId(sel), stay = p && isStay(p);
       const body = { productId: p ? p.id : "", name: $("#r-name").value.trim(), tel: $("#r-tel").value.trim(), message: msg.value.trim(), website: $("#r-web").value };
       if (p) {
+        if (!$("#r-ppl")) return toast("일정을 불러오는 중이에요. 잠시만 기다려 주세요");
+        if (mode === "slot" && !slotId) return toast("체험 일정을 골라 주세요");
+        if (mode === "cal" && !(ci && co)) return toast(ci ? "체크아웃 날짜를 골라 주세요" : "체크인 날짜를 골라 주세요");
+        if (mode === "slot") body.slotId = slotId;
         body.dateFrom = $("#r-from").value; body.people = +$("#r-ppl").textContent;
         if (!body.dateFrom) { $("#r-from").focus(); return toast(stay ? "체크인 날짜를 선택해 주세요" : "희망 날짜를 선택해 주세요"); }
         if (body.dateFrom < today) { $("#r-from").focus(); return toast("지난 날짜는 선택할 수 없어요"); }
@@ -811,7 +883,8 @@
         const { booking } = await api("/booking", body);
         if (!me) store.set("fg_ship", { ...store.get("fg_ship", {}), name: body.name, tel: body.tel });
         document.title = `문의 접수 완료 | ${SITE.name}`;
-        const b = { kind: p ? (stay ? "stay" : "craft") : "general", date_from: body.dateFrom, date_to: body.dateTo };
+        const sl = slots.find(x => x.id === slotId);
+        const b = { kind: p ? (stay ? "stay" : "craft") : "general", date_from: body.dateFrom, date_to: body.dateTo, slot_time: mode === "slot" && sl ? sl.time : "" };
         view.innerHTML = `<div class="wrap"><div class="done">
           <div class="ok"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>
           <h2>${p ? "예약 문의가" : "문의가"} 접수되었어요</h2>
@@ -1188,6 +1261,244 @@
     };
   }
 
+  /* ---------- 관리자: 체험 일정 · 숙박 달력 · 상품 관리 ---------- */
+  const WD = [..."일월화수목금토"];
+  const prodPicker = (list, cur, attr) => `<select ${attr} class="adm-pick">${list.map(p => `<option value="${p.id}" ${p.id === cur ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>`;
+
+  // 체험 일정: 회차 만들기, 시간·정원 바꾸기, 닫기, 삭제
+  function admSlots(box) {
+    const list = PRODUCTS.filter(p => p.ticket && !isStay(p));
+    if (!list.length) { box.innerHTML = `<p class="empty">체험 상품이 없어요. 상품 관리에서 '체험·숙박 예약 상품'을 켠 상품을 만들어 주세요.</p>`; return; }
+    let product = admSlots.last && byId(admSlots.last) && !isStay(byId(admSlots.last)) ? admSlots.last : list[0].id, rows = [];
+    const today = ymdLocal();
+    const draw = () => {
+      const byDate = {};
+      rows.filter(s => s.slot_date >= today).forEach(s => (byDate[s.slot_date] = byDate[s.slot_date] || []).push(s));
+      box.innerHTML = `
+        <div class="adm-bar">${prodPicker(list, product, "data-s-prod")}<span class="mode-note">손님은 남은 자리가 있는 일정 중에서 골라 예약 문의를 남겨요. 일정이 하나도 없으면 희망 날짜를 직접 적어요.</span></div>
+        <details class="box adm-make" ${rows.length ? "" : "open"}><summary><b>+ 일정 한꺼번에 만들기</b></summary>
+          <div class="form">
+            <div class="field"><label>기간</label><div class="row2"><input type="date" data-mk="from" min="${today}" value="${today}"><span>~</span><input type="date" data-mk="to" min="${today}" value="${addDays(today, 27)}"></div></div>
+            <div class="field"><label>요일</label><div class="wd">${WD.map((d, i) => `<label><input type="checkbox" data-mk-wd="${i}" ${i === 6 || i === 0 ? "checked" : ""}>${d}</label>`).join("")}</div></div>
+            <div class="field"><label>시간</label><input data-mk="times" value="10:00, 14:00" placeholder="10:00, 14:00 처럼 쉼표로"></div>
+            <div class="field"><label>정원 (회차당)</label><input data-mk="cap" type="number" min="1" max="500" value="10" inputmode="numeric"></div>
+            <button class="btn primary" type="button" data-s-make>일정 만들기</button>
+          </div>
+        </details>
+        <div class="box ord-list adm">${Object.keys(byDate).length ? Object.entries(byDate).map(([d, list]) => `<div class="slot-adm-day"><b>${dayLabel(d)}</b>${list.map(s => `
+          <div class="slot-adm ${s.closed ? "closed" : ""}" data-sid="${s.id}">
+            <input type="time" value="${esc(s.slot_time)}" data-sf="time" aria-label="시간">
+            <span class="cap">정원 <input type="number" min="1" max="500" value="${s.capacity}" data-sf="cap" inputmode="numeric" aria-label="정원">명</span>
+            <span class="used ${s.booked >= s.capacity ? "full" : ""}">예약 ${s.booked}명 · 남은 ${Math.max(0, s.capacity - s.booked)}</span>
+            ${s.closed ? `<span class="pill" style="background:var(--soft);color:var(--mute)">닫힘</span>` : ""}
+            <span class="acts"><button class="btn ghost" data-s-save>저장</button><button class="btn ghost" data-s-close="${s.closed ? 0 : 1}">${s.closed ? "열기" : "닫기"}</button><button class="btn ghost" data-s-del>삭제</button></span>
+          </div>`).join("")}</div>`).join("") : `<p class="empty">앞으로 예정된 일정이 없어요. 위에서 일정을 만들어 주세요.</p>`}</div>`;
+    };
+    const load = async () => {
+      admSlots.last = product;
+      box.innerHTML = `<p class="loading">잠시만 기다려 주세요</p>`;
+      try { rows = (await api(`/admin/slots?product=${encodeURIComponent(product)}`, null, "GET")).slots || []; draw(); }
+      catch (err) { box.innerHTML = `<p class="empty">${esc(err.message)}</p>`; }
+    };
+    box.onchange = e => { if (e.target.matches("[data-s-prod]")) { product = e.target.value; load(); } };
+    box.onclick = async e => {
+      const t = e.target.closest("button"); if (!t) return;
+      const row = t.closest("[data-sid]"), id = row && +row.dataset.sid;
+      const v = k => $(`[data-mk="${k}"]`, box).value.trim();
+      try {
+        if ("sMake" in t.dataset) {
+          const weekdays = [...box.querySelectorAll("[data-mk-wd]:checked")].map(x => +x.dataset.mkWd);
+          const times = v("times").split(/[,\s]+/).filter(Boolean).map(x => /^\d:\d\d$/.test(x) ? "0" + x : x);
+          t.disabled = true;
+          const r = await api("/admin/slots", { product, from: v("from"), to: v("to"), weekdays, times, capacity: +v("cap") });
+          toast(`일정 ${r.created}개를 만들었어요${r.skipped ? ` (이미 있는 ${r.skipped}개는 건너뜀)` : ""}`); return load();
+        }
+        if (!row) return;
+        if ("sSave" in t.dataset) { await api("/admin/slot", { id, time: $("[data-sf=time]", row).value, capacity: +$("[data-sf=cap]", row).value }); toast("저장했어요"); return load(); }
+        if (t.dataset.sClose) { await api("/admin/slot", { id, closed: t.dataset.sClose === "1" }); toast(t.dataset.sClose === "1" ? "일정을 닫았어요 (손님에게 안 보여요)" : "일정을 다시 열었어요"); return load(); }
+        if ("sDel" in t.dataset) { if (!confirm("이 일정을 삭제할까요?")) return; await api("/admin/slot", { id, remove: true }); toast("삭제했어요"); return load(); }
+      } catch (err) { toast(err.message); t.disabled = false; }
+    };
+    load();
+  }
+
+  // 숙박 달력: 예약확정·문의 중·막은 날 보기, 날짜 눌러 막기/풀기
+  function admStay(box) {
+    const list = PRODUCTS.filter(p => p.ticket && isStay(p));
+    if (!list.length) { box.innerHTML = `<p class="empty">숙박 상품이 없어요.</p>`; return; }
+    let product = list[0].id, ym = ymdLocal().slice(0, 7), data = null;
+    const BK_ST = { new: "새 문의", contacted: "연락함", confirmed: "예약확정" };
+    const draw = () => {
+      const night = {};   // 날짜 → 그날 밤 묵는 예약들
+      data.bookings.forEach(b => { for (let d = b.date_from; d < b.date_to; d = addDays(d, 1)) (night[d] = night[d] || []).push(b); });
+      const blocked = new Map(data.blocks.map(b => [b.block_date, b.note]));
+      const cell = d => {
+        const bs = night[d] || [], conf = bs.find(b => b.status === "confirmed"), ask = bs.filter(b => b.status !== "confirmed");
+        const cls = [blocked.has(d) ? "blk" : "", conf ? "conf" : "", ask.length ? "ask" : "", d < data.today ? "past" : "", d === data.today ? "today" : ""].join(" ");
+        const html = (conf ? `<em class="t conf">${esc(conf.name)}</em>` : "") + (ask.length ? `<em class="t ask">문의 ${ask.length}</em>` : "") + (blocked.has(d) ? `<em class="t blk">막음</em>` : "");
+        return { cls, html };
+      };
+      box.innerHTML = `
+        <div class="adm-bar">${prodPicker(list, product, "data-st-prod")}<span class="mode-note">날짜를 누르면 그날을 막거나 풀어요 (휴무·정비 등). 손님에게는 <b>예약확정</b>된 날과 <b>막은 날</b>이 '예약 불가'로 보여요.</span></div>
+        <div class="box cal adm-cal">
+          <div class="cal-h"><button type="button" data-st-m="-1" aria-label="이전 달">‹</button><b>${ym.slice(0, 4)}년 ${+ym.slice(5)}월</b><button type="button" data-st-m="1" aria-label="다음 달">›</button></div>
+          ${monthGrid(ym, cell)}
+          <p class="cal-legend"><span class="lg conf"></span>예약확정 <span class="lg ask"></span>문의 중 (아직 안 막힘) <span class="lg blk"></span>관리자가 막은 날</p>
+        </div>
+        <div class="box ord-list adm"><div class="box-h"><b>${+ym.slice(5)}월 숙박 예약·문의</b><span class="num">${data.bookings.length}건</span></div>
+          ${data.bookings.length ? data.bookings.map(b => `<div class="stay-row"><span class="st st-q-${b.status}">${BK_ST[b.status]}</span><b>${dayLabel(b.date_from)} → ${dayLabel(b.date_to)} · ${nightsOf(b.date_from, b.date_to)}박</b><span>${esc(b.name)} · ${b.people || "-"}명 · <a class="num" href="tel:${esc(String(b.tel).replace(/\D/g, ""))}">${esc(b.tel)}</a></span><span class="mode-note num">${esc(b.booking_no)}</span></div>`).join("")
+            : `<p class="empty">이 달에는 숙박 예약·문의가 없어요.</p>`}
+          <p class="mode-note" style="padding:0 20px 16px">예약 확정·취소는 <b>예약·문의</b> 탭에서 상태를 바꿔 주세요.</p>
+        </div>`;
+    };
+    const load = async () => {
+      box.innerHTML = `<p class="loading">잠시만 기다려 주세요</p>`;
+      try { data = await api(`/admin/stay?product=${encodeURIComponent(product)}&month=${ym}`, null, "GET"); draw(); }
+      catch (err) { box.innerHTML = `<p class="empty">${esc(err.message)}</p>`; }
+    };
+    box.onchange = e => { if (e.target.matches("[data-st-prod]")) { product = e.target.value; load(); } };
+    box.onclick = async e => {
+      const m = e.target.closest("[data-st-m]"); if (m) { ym = ymAdd(ym, +m.dataset.stM); return load(); }
+      const d = e.target.closest("[data-day]"); if (!d || !data) return;
+      const day = d.dataset.day, isBlk = data.blocks.some(b => b.block_date === day);
+      if (day < data.today) return toast("지난 날짜예요");
+      if (!isBlk && !confirm(`${dayLabel(day)}을(를) 막을까요?\n손님 달력에 '예약 불가'로 보여요.`)) return;
+      try { await api("/admin/stay-block", { product, date: day, blocked: !isBlk }); toast(isBlk ? "막은 날을 풀었어요" : "그날을 막았어요"); load(); }
+      catch (err) { toast(err.message); }
+    };
+    load();
+  }
+
+  // 상품 관리: GitHub 의 data/products.json 을 고쳐서 저장 (1~2분 뒤 홈페이지 반영)
+  function admProducts(box) {
+    let items = [], sha = "", cats = [], filter = "all", editing = null;
+    const catName = id => (cats.find(c => c.id === id) || { name: id }).name;
+    const won0 = n => n ? won(n) + "원" : "가격 문의";
+    const nextId = () => { let n = items.reduce((m, p) => Math.max(m, +(/^p(\d+)$/.exec(p.id) || [0, 0])[1]), 0) + 1; return "p" + String(n).padStart(2, "0"); };
+    const thumb = p => p.image ? `<img src="${esc(p._preview || p.image)}" alt="">` : `<span class="noimg">사진 없음</span>`;
+    const save = async (note, msgOk) => {
+      const r = await api("/admin/products", { items: items.map(({ _preview, ...p }) => p), sha, note });
+      sha = r.sha; toast(msgOk || "저장했어요. 1~2분 뒤 홈페이지에 반영돼요");
+    };
+    const drawList = () => {
+      const shown = items.map((p, i) => ({ p, i })).filter(x => filter === "all" || x.p.cat === filter);
+      box.innerHTML = `
+        <div class="adm-bar"><div class="sorts">${[["all", "전체"], ...cats.map(c => [c.id, c.name])].map(([k, v]) => `<button data-pf="${k}" aria-pressed="${filter === k}">${esc(v)} <span class="num">${k === "all" ? items.length : items.filter(p => p.cat === k).length}</span></button>`).join("")}</div>
+          <button class="btn primary" data-p-new>+ 새 상품</button></div>
+        <p class="mode-note">저장하면 GitHub 에 바로 기록되고, 1~2분 뒤 홈페이지에 반영돼요. 순서는 ▲▼로 바꿀 수 있어요 (같은 분류 안의 순서가 화면 순서).</p>
+        <div class="box ord-list adm">${shown.length ? shown.map(({ p, i }) => `<div class="prod-adm" data-pi="${i}">
+          <div class="th">${thumb(p)}</div>
+          <div class="tx"><b>${esc(p.name)}</b><span>${esc(catName(p.cat))} · ${won0(p.price)}${p.was ? ` <s>${won(p.was)}원</s>` : ""}</span>
+            <span class="tags">${p.flag ? `<span class="pill">${esc(p.flag)}</span>` : ""}${p.ticket ? `<span class="pill">예약 상품</span>` : ""}${p.soon ? `<span class="pill" style="background:var(--soft);color:var(--mute)">오픈 예정</span>` : ""}</span></div>
+          <div class="acts"><button class="btn ghost" data-p-up aria-label="위로">▲</button><button class="btn ghost" data-p-down aria-label="아래로">▼</button><button class="btn ghost" data-p-edit>수정</button><button class="btn ghost" data-p-del>삭제</button></div>
+        </div>`).join("") : `<p class="empty">이 분류에 상품이 없어요.</p>`}</div>`;
+    };
+    const fld = (k, label, val, extra = "") => `<div class="field"><label for="pe-${k}">${label}</label><input id="pe-${k}" data-pe="${k}" value="${esc(val == null ? "" : val)}" ${extra}></div>`;
+    const drawEdit = () => {
+      const p = editing.p;
+      box.innerHTML = `<form class="box prod-edit" novalidate>
+        <div class="box-h"><b>${editing.isNew ? "새 상품" : "상품 수정"}</b><span class="mode-note num">상품 코드 ${esc(p.id)}</span></div>
+        <div class="form">
+          <div class="field"><label for="pe-cat">분류</label><select id="pe-cat" data-pe="cat">${cats.map(c => `<option value="${c.id}" ${p.cat === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div>
+          ${fld("name", "상품 이름", p.name, 'maxlength="80" placeholder="예: 강화속노란고구마 5kg"')}
+          ${fld("sub", "한 줄 소개", p.sub, 'maxlength="120" placeholder="카드에 이름 아래로 보이는 짧은 설명"')}
+          <div class="field"><label>사진</label><div class="pe-photo"><div class="th">${thumb(p)}</div><div><input type="file" accept="image/jpeg,image/png,image/webp" data-pe-file><p class="mode-note">JPG·PNG 사진을 고르면 자동으로 줄여서 올려요.</p></div></div></div>
+          ${fld("price", "판매가 (원)", p.price || 0, 'type="number" min="0" inputmode="numeric" placeholder="0 이면 \'가격 문의\'"')}
+          ${fld("was", "할인 전 가격 (원)", p.was || 0, 'type="number" min="0" inputmode="numeric" placeholder="할인 표시 안 하면 0"')}
+          ${fld("flag", "배지", p.flag, 'maxlength="16" placeholder="예: BEST, 햅쌀, 체험 (비우면 없음)"')}
+          ${fld("unit", "판매 단위", p.unit, 'maxlength="80" placeholder="예: 1박스 (5kg)"')}
+          ${fld("pack", "포장 타입", p.pack, 'maxlength="80" placeholder="예: 상온 (종이박스)"')}
+          ${fld("origin", "원산지", p.origin, 'maxlength="80" placeholder="예: 인천 강화군"')}
+          <div class="field"><label>설정</label><div class="pe-checks">
+            <label class="chk"><input type="checkbox" data-pe-chk="taxFree" ${p.taxFree ? "checked" : ""}><span>면세 상품 (농산물 등)</span></label>
+            <label class="chk"><input type="checkbox" data-pe-chk="ticket" ${p.ticket ? "checked" : ""}><span>체험·숙박 예약 상품 ('담기' 대신 '예약 문의' 버튼)</span></label>
+            <label class="chk"><input type="checkbox" data-pe-chk="soon" ${p.soon ? "checked" : ""}><span>오픈 예정 (목록에 보이지만 상세로 못 들어감)</span></label>
+          </div></div>
+          <div class="field top"><label for="pe-detail">요약 설명</label><textarea id="pe-detail" data-pe="detail" rows="3" maxlength="2000">${esc(p.detail || "")}</textarea></div>
+          <div class="field top"><label>상품설명 단락</label><div class="pe-story">${(p.story || []).map((s, i) => `<div class="pe-st" data-st="${i}">
+              <input data-st-f="title" value="${esc(s.title || "")}" placeholder="단락 제목" maxlength="120">
+              <textarea data-st-f="text" rows="3" maxlength="3000" placeholder="본문">${esc(s.text || "")}</textarea>
+              <textarea data-st-f="list" rows="2" placeholder="체크 목록 (한 줄에 하나, 비워도 돼요)">${esc((s.list || []).join("\n"))}</textarea>
+              <button type="button" class="btn ghost" data-st-del>이 단락 삭제</button></div>`).join("")}
+            <button type="button" class="btn ghost" data-st-add>+ 단락 추가</button></div></div>
+          <div class="field top"><label for="pe-info">상세정보 표</label><div><textarea id="pe-info" data-pe="info" rows="4" placeholder="항목 | 내용 (한 줄에 하나)&#10;예: 보관방법 | 서늘한 곳">${esc((p.info || []).map(r => r.join(" | ")).join("\n"))}</textarea></div></div>
+        </div>
+        <div class="pe-actions"><button type="button" class="btn ghost" data-p-cancel>취소</button><button type="button" class="btn primary" data-p-save>저장</button></div>
+      </form>`;
+    };
+    const readForm = () => {
+      const p = editing.p, v = k => { const el = $(`[data-pe="${k}"]`, box); return el ? el.value.trim() : ""; };
+      ["cat", "name", "sub", "flag", "unit", "pack", "origin", "detail"].forEach(k => (p[k] = v(k)));
+      p.price = Math.max(0, Math.floor(+v("price") || 0)); p.was = Math.max(0, Math.floor(+v("was") || 0));
+      box.querySelectorAll("[data-pe-chk]").forEach(c => { if (c.checked) p[c.dataset.peChk] = true; else delete p[c.dataset.peChk]; });
+      p.story = [...box.querySelectorAll("[data-st]")].map(el => {
+        const g = f => $(`[data-st-f="${f}"]`, el).value.trim();
+        const o = { title: g("title"), text: g("text") }, list = g("list").split("\n").map(x => x.trim()).filter(Boolean);
+        if (list.length) o.list = list;
+        return o;
+      }).filter(s => s.title || s.text);
+      p.info = v("info").split("\n").map(l => l.split("|").map(x => x.trim())).filter(r => r[0] && r[1]).map(r => [r[0], r.slice(1).join(" | ")]);
+    };
+    const resizeJpeg = async file => {
+      const img = await createImageBitmap(file);
+      const r = Math.min(1, 1400 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      return c.toDataURL("image/jpeg", 0.85);
+    };
+    const load = async () => {
+      box.innerHTML = `<p class="loading">잠시만 기다려 주세요</p>`;
+      try { const d = await api("/admin/products", null, "GET"); items = d.items; sha = d.sha; cats = d.categories; drawList(); }
+      catch (err) { box.innerHTML = `<p class="empty">${esc(err.message)}</p>`; }
+    };
+    box.onchange = async e => {
+      const f = e.target.closest("[data-pe-file]"); if (!f || !f.files[0]) return;
+      readForm();
+      try {
+        toast("사진을 올리는 중이에요");
+        const url = await resizeJpeg(f.files[0]);
+        const { path } = await api("/admin/image", { id: editing.p.id, data: url.split(",")[1] });
+        editing.p.image = path; editing.p._preview = url; drawEdit(); toast("사진을 올렸어요. 저장을 눌러야 상품에 적용돼요");
+      } catch (err) { toast(err.message || "사진을 읽지 못했어요. JPG·PNG 사진을 골라 주세요"); }
+    };
+    box.onclick = async e => {
+      const t = e.target.closest("button"); if (!t) return;
+      if (t.dataset.pf) { filter = t.dataset.pf; return drawList(); }
+      if ("pNew" in t.dataset) { editing = { isNew: true, p: { id: nextId(), cat: filter !== "all" ? filter : (cats[0] || {}).id, name: "", sub: "", price: 0, was: 0, image: "", flag: "", taxFree: false, origin: "", unit: "", pack: "", sold: 0, detail: "", story: [], info: [] } }; return drawEdit(); }
+      if ("stAdd" in t.dataset) { readForm(); editing.p.story.push({ title: "", text: "" }); return drawEdit(); }
+      if ("stDel" in t.dataset) { readForm(); editing.p.story.splice(+t.closest("[data-st]").dataset.st, 1); return drawEdit(); }
+      if ("pCancel" in t.dataset) { editing = null; return load(); }
+      if ("pSave" in t.dataset) {
+        readForm();
+        if (!editing.p.name) return toast("상품 이름을 입력해 주세요");
+        const before = items;
+        items = editing.isNew ? [...items, editing.p] : items.map(p => p.id === editing.p.id ? editing.p : p);
+        t.disabled = true;
+        try { await save(`${editing.isNew ? "추가" : "수정"}: ${editing.p.name}`); editing = null; drawList(); }
+        catch (err) { items = before; toast(err.message); t.disabled = false; }
+        return;
+      }
+      const row = t.closest("[data-pi]"); if (!row) return;
+      const i = +row.dataset.pi, p = items[i];
+      if ("pEdit" in t.dataset) { editing = { isNew: false, p: JSON.parse(JSON.stringify(p)) }; return drawEdit(); }
+      if ("pDel" in t.dataset) {
+        if (!confirm(`'${p.name}' 상품을 삭제할까요?\n홈페이지에서 바로 사라져요. (사진 파일은 남아 있어요)`)) return;
+        const before = items; items = items.filter((_, k) => k !== i);
+        try { await save(`삭제: ${p.name}`, "삭제했어요. 1~2분 뒤 홈페이지에 반영돼요"); drawList(); } catch (err) { items = before; toast(err.message); }
+        return;
+      }
+      if ("pUp" in t.dataset || "pDown" in t.dataset) {
+        // 같은 분류 안에서 바로 위/아래 상품과 자리 바꾸기
+        const dir = "pUp" in t.dataset ? -1 : 1;
+        let j = i + dir; while (j >= 0 && j < items.length && items[j].cat !== p.cat) j += dir;
+        if (j < 0 || j >= items.length) return;
+        const before = items; items = items.slice(); [items[i], items[j]] = [items[j], items[i]];
+        try { await save(`순서 변경: ${p.name}`, "순서를 바꿨어요"); drawList(); } catch (err) { items = before; toast(err.message); }
+      }
+    };
+    load();
+  }
+
   /* ---------- 페이지: 관리자 주문 관리 ---------- */
   function pageAdmin(view) {
     document.title = `관리자 | ${SITE.name}`;
@@ -1198,6 +1509,9 @@
       inquiry: { name: "구매 문의", tabs: { new: "새 문의", contacted: "연락함", done: "완료", cancelled: "취소", all: "전체" }, first: "new", api: "inquiries" },
       review: { name: "상품 후기", tabs: { all: "전체", shown: "공개", hidden: "숨김" }, first: "all", api: "reviews" },
       question: { name: "상품 문의", tabs: { open: "답변대기", answered: "답변완료", all: "전체" }, first: "open", api: "questions" },
+      slots: { name: "체험 일정", custom: admSlots },
+      stay: { name: "숙박 달력", custom: admStay },
+      products: { name: "상품 관리", custom: admProducts },
       order: { name: "주문", tabs: { paid: "결제완료", preparing: "상품준비중", shipped: "배송중", delivered: "배송완료", cancelled: "취소", all: "전체" }, first: "paid", api: "orders" }
     };
     let section = INQUIRY() ? "booking" : "order", status = SECTIONS[section].first, rows = [];
@@ -1272,6 +1586,13 @@
         <div style="height:72px"></div></div>`;
     };
     const load = async () => {
+      if (SECTIONS[section].custom) {
+        // 체험 일정·숙박 달력·상품 관리는 각자 화면을 그림
+        view.innerHTML = `<div class="wrap"><div class="page-title"><h2>관리자</h2><p>관리자 전용 화면</p></div>
+          <div class="adm-sec">${Object.entries(SECTIONS).map(([k, s]) => `<button data-sec="${k}" aria-pressed="${section === k}">${s.name}</button>`).join("")}</div>
+          <div id="admBody"></div><div style="height:72px"></div></div>`;
+        return SECTIONS[section].custom($("#admBody"));
+      }
       view.innerHTML = `<p class="loading">불러오는 중…</p>`;
       try {
         const d = await api(`/admin/${SECTIONS[section].api}?status=${status}`, null, "GET");
@@ -1285,7 +1606,7 @@
     view.onclick = async e => {
       if (e.target.closest("[data-relogin]")) { await signOutClean(); location.href = "login.html?next=admin.html"; return; }
       const sec = e.target.closest("[data-sec]");
-      if (sec) { section = sec.dataset.sec; status = SECTIONS[section].first; return load(); }
+      if (sec) { section = sec.dataset.sec; status = SECTIONS[section].first || ""; return load(); }
       const tab = e.target.closest("[data-tab]");
       if (tab) { status = tab.dataset.tab; return load(); }
       const rv = e.target.closest("[data-rev]"), an = e.target.closest("[data-ans]");

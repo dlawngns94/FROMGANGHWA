@@ -458,3 +458,108 @@ a.add{text-decoration:none}
 .mid-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
 .mid-row input{font-size:12px;color:var(--sub)}
 .mid-row .btn{height:44px;padding-inline:14px;flex:none}
+/* 예약 폼: 체험 일정 고르기 */
+.slot-list{display:grid;gap:12px;max-height:340px;overflow-y:auto;padding-right:4px}
+.slot-day b{display:block;font-size:13px;margin-bottom:6px}
+.slot-day>div{display:flex;flex-wrap:wrap;gap:6px}
+.slot-btn{display:inline-flex;flex-direction:column;align-items:center;min-width:76px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;font-size:14px;font-weight:700;background:var(--bg)}
+.slot-btn small{font-size:11px;font-weight:500;color:var(--sub)}
+.slot-btn[aria-pressed="true"]{border-color:var(--brand);background:var(--brand);color:var(--brand-ink)}
+.slot-btn[aria-pressed="true"] small{color:inherit}
+.slot-btn:disabled{opacity:.45;cursor:not-allowed;text-decoration:line-through}
+/* 달력 (예약 폼 · 관리자 숙박 달력) */
+.cal{min-width:0}
+.cal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal-h b{font-size:15px}
+.cal-h button{width:34px;height:34px;border:1px solid var(--line);border-radius:50%;font-size:18px;line-height:1}
+.cal-h button:disabled{opacity:.3}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
+.cal-grid>b{font-size:12px;color:var(--sub);padding:4px 0}
+.cal-grid>b.sun{color:var(--sale)}
+.cal-grid>b.sat{color:var(--brand)}
+.cal-d{aspect-ratio:1;border-radius:6px;font-size:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:var(--bg);border:1px solid transparent}
+.cal-d:hover:not(:disabled){border-color:var(--brand)}
+.cal-d:disabled{color:var(--mute);cursor:not-allowed}
+.cal-d.off{background:repeating-linear-gradient(-45deg,var(--soft),var(--soft) 4px,transparent 4px,transparent 8px);color:var(--mute);text-decoration:line-through}
+.cal-d.in{background:var(--brand-soft)}
+.cal-d.ci,.cal-d.co{background:var(--brand);color:var(--brand-ink);text-decoration:none}
+.cal-legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:12px;color:var(--sub);margin:10px 0 0}
+.lg{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:-6px;vertical-align:-1px}
+.lg.off{background:repeating-linear-gradient(-45deg,#ccc,#ccc 2px,transparent 2px,transparent 4px)}
+.lg.ci{background:var(--brand)}
+.lg.conf{background:#dcefe2}.lg.ask{background:#fff3d6}.lg.blk{background:#e4e4e4}
+/* 관리자 공통 */
+.adm-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;margin-bottom:16px}
+.adm-bar .mode-note{flex:1 1 280px;margin:0}
+.adm-pick{height:42px;border:1px solid var(--line);border-radius:6px;padding-inline:10px;font-weight:700;background:var(--bg);max-width:100%}
+.adm-make{margin-bottom:16px}
+.adm-make summary{padding:16px 20px;cursor:pointer;list-style:none}
+.adm-make summary::-webkit-details-marker{display:none}
+.adm-make[open] summary{border-bottom:1px solid var(--line)}
+.adm-make .btn{height:46px}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:6px}
+.wd{display:flex;flex-wrap:wrap;gap:6px}
+.wd label{display:inline-flex;align-items:center;gap:4px;padding:6px 10px;border:1px solid var(--line);border-radius:16px;font-size:13px;cursor:pointer}
+.wd input{width:auto;height:auto}
+/* 관리자: 체험 일정 */
+.slot-adm-day{padding:14px 20px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+.slot-adm-day>b{font-size:14px}
+.slot-adm{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:13px}
+.slot-adm.closed{opacity:.55}
+.slot-adm input{height:36px;border:1px solid var(--line);border-radius:4px;padding-inline:8px;background:var(--bg)}
+.slot-adm input[type=time]{width:110px}
+.slot-adm .cap input{width:64px;margin:0 4px}
+.slot-adm .used{color:var(--sub)}
+.slot-adm .used.full{color:var(--sale);font-weight:700}
+.slot-adm .acts{display:flex;gap:4px;margin-left:auto}
+.slot-adm .acts .btn,.prod-adm .acts .btn{height:34px;padding-inline:10px;font-size:13px;flex:none}
+/* 관리자: 숙박 달력 */
+.adm-cal{padding:16px 20px;margin-bottom:16px}
+.adm-cal .cal-d{aspect-ratio:auto;min-height:64px;justify-content:flex-start;align-items:stretch;padding:4px;border:1px solid var(--line)}
+.adm-cal .cal-d .n{font-size:12px;text-align:left}
+.adm-cal .cal-d.past{opacity:.45}
+.adm-cal .cal-d.today{border-color:var(--brand);border-width:2px}
+.adm-cal .cal-d.conf{background:#dcefe2}
+.adm-cal .cal-d.blk{background:#e4e4e4}
+.adm-cal .t{font-style:normal;font-size:10px;line-height:1.3;border-radius:3px;padding:1px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-cal .t.conf{background:#2f7a4a;color:#fff}
+.adm-cal .t.ask{background:#fff3d6;color:#8a5a00}
+.adm-cal .t.blk{background:#888;color:#fff}
+.stay-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:12px 20px;border-bottom:1px solid var(--line);font-size:14px}
+.stay-row a{color:var(--brand)}
+/* 관리자: 상품 관리 */
+.prod-adm{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line)}
+.prod-adm .th,.pe-photo .th{width:64px;height:64px;border-radius:6px;overflow:hidden;background:var(--soft);display:grid;place-items:center}
+.prod-adm .th img,.pe-photo .th img{width:100%;height:100%;object-fit:cover}
+.noimg{font-size:10px;color:var(--mute)}
+.prod-adm .tx{display:grid;gap:2px;min-width:0}
+.prod-adm .tx span{font-size:13px;color:var(--sub)}
+.prod-adm .tags{display:flex;gap:4px;flex-wrap:wrap}
+.prod-adm .acts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.pe-photo{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;align-items:center}
+.pe-photo .th{width:64px;height:64px}
+.pe-photo input[type=file]{height:auto;border:0;padding:0}
+.pe-checks{display:grid;gap:8px}
+.pe-checks input{width:auto;height:auto}
+.pe-story{display:grid;gap:12px}
+.pe-st{display:grid;gap:6px;padding:12px;border:1px solid var(--line);border-radius:6px}
+.pe-st input,.pe-st textarea,#pe-info,#pe-detail{border:1px solid var(--line);border-radius:4px;padding:8px 10px;width:100%;background:var(--bg);line-height:1.6;font:inherit}
+.pe-st input{height:40px}
+.pe-st .btn,.pe-story>.btn{height:36px;justify-self:start;padding-inline:12px;font-size:13px;flex:none}
+.pe-actions{display:flex;justify-content:flex-end;gap:8px;padding:0 20px 20px}
+.pe-actions .btn{height:46px;padding-inline:24px;flex:none}
+@media (max-width:560px){
+  .prod-adm{grid-template-columns:56px minmax(0,1fr)}
+  .prod-adm .acts{grid-column:1/-1;justify-content:flex-start}
+  .slot-adm .acts{margin-left:0}
+  .adm-cal{padding:12px 8px}
+  .adm-cal .cal-d{min-height:52px;padding:2px}
+  .adm-cal .t{font-size:9px}
+}
+#r-cal{max-width:420px}
+.adm-bar .sorts{display:flex;flex-wrap:wrap;gap:6px}
+.adm-bar .sorts button{height:34px;padding-inline:12px;border:1px solid var(--line);border-radius:17px;font-size:13px;color:var(--sub)}
+.adm-bar .sorts button[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);font-weight:700}
+.adm-bar>.btn{flex:none;height:42px;padding-inline:18px}
+.slot-adm.closed{opacity:1}
+.slot-adm.closed>:not(.acts){opacity:.5}

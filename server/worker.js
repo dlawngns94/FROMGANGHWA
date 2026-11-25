@@ -15,6 +15,16 @@
  *  POST /orders/lookup       비회원 주문조회 (주문번호 + 휴대폰)
  *  POST /auth/naver          네이버 로그인 → Supabase 로그인 토큰 발급
  *  POST /auth/kakao          카카오 로그인 → Supabase 로그인 토큰 발급
+ *  GET  /slots?product=      체험 회차와 남은 자리 (누구나)
+ *  GET  /stay?product=       숙박 예약 불가 날짜 (누구나)
+ *  GET  /admin/slots         관리자: 체험 회차 목록 (예약 인원 포함)
+ *  POST /admin/slots         관리자: 체험 회차 한꺼번에 만들기
+ *  POST /admin/slot          관리자: 회차 정원·시간·닫기·삭제
+ *  GET  /admin/stay          관리자: 숙박 달력 (예약·문의·막은 날)
+ *  POST /admin/stay-block    관리자: 숙박 날짜 막기/풀기
+ *  GET  /admin/products      관리자: 상품 목록 (GitHub 의 data/products.json)
+ *  POST /admin/products      관리자: 상품 목록 저장 (GitHub 에 커밋 → 1~2분 뒤 홈페이지 반영)
+ *  POST /admin/image         관리자: 상품 사진 올리기 (assets/images/products/)
  *  GET  /me                  내 관리자 여부 (관리자면 새 예약·문의 건수도)
  *  POST /me/withdraw         회원 탈퇴
  *  GET  /admin/inquiries     관리자: 구매 문의 목록
@@ -43,6 +53,9 @@
  *  NAVER_LOGIN_CLIENT_ID       네이버 로그인 애플리케이션 Client ID
  *  NAVER_LOGIN_CLIENT_SECRET 🔒
  *  KAKAO_LOGIN_CLIENT_SECRET 🔒 카카오 로그인 Client Secret (카카오 콘솔에서 켠 경우만)
+ *  GITHUB_TOKEN             🔒 상품 관리용 GitHub 토큰 (FROMGANGHWA 저장소 Contents 읽기·쓰기만)
+ *  GITHUB_REPO                 dlawngns94/FROMGANGHWA
+ *  GITHUB_BRANCH               main (생략 가능)
  *
  * 외부 API 경로·파라미터는 각 개발자센터 최신 문서로 한 번 더 확인하세요.
  */
@@ -109,6 +122,16 @@ const ROUTES = {
   "POST /auth/naver": naverLogin,
   "POST /auth/kakao": kakaoLogin,
   "GET /me": meInfo,
+  "GET /slots": publicSlots,
+  "GET /stay": publicStay,
+  "GET /admin/slots": adminSlots,
+  "POST /admin/slots": adminCreateSlots,
+  "POST /admin/slot": adminSlotUpdate,
+  "GET /admin/stay": adminStay,
+  "POST /admin/stay-block": adminStayBlock,
+  "GET /admin/products": adminProducts,
+  "POST /admin/products": adminSaveProducts,
+  "POST /admin/image": adminImage,
   "POST /me/withdraw": withdraw,
   "POST /inquiry": inquiry,
   "POST /booking": booking,
@@ -228,22 +251,39 @@ async function booking({ env, req, body, db }) {
   if (!name) fail(400, "이름을 입력해 주세요");
   if (!/^0\d{8,10}$/.test(digits(tel))) fail(400, "휴대폰 번호를 확인해 주세요");
 
-  let kind = "general", product = null, dateFrom = null, dateTo = null, people = null;
+  let kind = "general", product = null, dateFrom = null, dateTo = null, people = null, slot = null;
   if (body.productId) {
     const { products } = await catalog(env);
     product = products.find(p => p.id === body.productId && p.ticket && !p.soon);
     if (!product) fail(400, "예약할 수 없는 상품이에요");
     kind = product.cat === "stay" ? "stay" : "craft";
-    dateFrom = String(body.dateFrom || "");
-    if (!isDate(dateFrom)) fail(400, kind === "stay" ? "체크인 날짜를 선택해 주세요" : "희망 날짜를 선택해 주세요");
-    if (dateFrom < kstToday()) fail(400, "지난 날짜는 선택할 수 없어요");
+    people = Math.floor(Number(body.people));
+    if (!(people >= 1 && people <= 99)) fail(400, "인원을 확인해 주세요");
+    if (kind === "craft" && body.slotId) {
+      // 관리자가 만든 회차를 고른 경우: 남은 자리 확인
+      const [s] = await db.select(`slots?id=eq.${Number(body.slotId) || 0}&product_id=eq.${enc(product.id)}&select=*`);
+      if (!s || s.closed) fail(400, "선택한 일정은 예약할 수 없어요. 다른 일정을 골라 주세요");
+      if (!slotOpen(s)) fail(400, "지난 일정이에요. 다른 일정을 골라 주세요");
+      const left = s.capacity - ((await usedBySlot(db, [s.id]))[s.id] || 0);
+      if (people > left) fail(400, left > 0 ? `남은 자리가 ${left}명이에요. 인원을 줄이거나 다른 일정을 골라 주세요` : "마감된 일정이에요. 다른 일정을 골라 주세요");
+      slot = s; dateFrom = s.slot_date;
+    } else {
+      if (kind === "craft") {
+        const open = await db.select(`slots?product_id=eq.${enc(product.id)}&closed=eq.false&slot_date=gte.${kstToday()}&select=id&limit=1`);
+        if (open.length) fail(400, "체험 일정을 골라 주세요");
+      }
+      dateFrom = String(body.dateFrom || "");
+      if (!isDate(dateFrom)) fail(400, kind === "stay" ? "체크인 날짜를 선택해 주세요" : "희망 날짜를 선택해 주세요");
+      if (dateFrom < kstToday()) fail(400, "지난 날짜는 선택할 수 없어요");
+    }
     if (kind === "stay") {
       dateTo = String(body.dateTo || "");
       if (!isDate(dateTo)) fail(400, "체크아웃 날짜를 선택해 주세요");
       if (dateTo <= dateFrom) fail(400, "체크아웃은 체크인 다음 날 이후로 선택해 주세요");
+      if (dateTo > addDays(dateFrom, 30)) fail(400, "한 번에 30박까지 문의할 수 있어요");
+      const busy = await stayUnavailable(db, product.id, dateFrom, addDays(dateTo, -1));
+      if (busy.size) fail(400, `${[...busy].sort()[0]} 은(는) 이미 예약이 차 있어요. 다른 날짜를 골라 주세요`);
     }
-    people = Math.floor(Number(body.people));
-    if (!(people >= 1 && people <= 99)) fail(400, "인원을 확인해 주세요");
   } else if (!message) fail(400, "문의 내용을 입력해 주세요");
 
   const user = await getUser(env, req, false);
@@ -254,6 +294,7 @@ async function booking({ env, req, body, db }) {
     product_id: product ? product.id : null,
     product_name: product ? product.name : null,
     date_from: dateFrom, date_to: dateTo, people,
+    slot_id: slot ? slot.id : null, slot_time: slot ? slot.slot_time : null,
     name, tel, message: message || null,
     status: "new",
   });
@@ -277,12 +318,264 @@ async function adminBookings({ env, req, url, db }) {
 async function adminBookingUpdate({ env, req, body, db }) {
   await requireAdmin(env, req);
   if (!BK_STATUS.includes(body.status)) fail(400, "잘못된 상태");
+  if (body.status === "confirmed") {
+    // 숙박을 확정할 때 다른 확정 예약·막은 날과 겹치면 막음
+    const [b] = await db.select(`bookings?booking_no=eq.${enc(body.bookingNo || "")}&select=*`);
+    if (b && b.kind === "stay" && b.status !== "confirmed" && b.date_from && b.date_to) {
+      const busy = await stayUnavailable(db, b.product_id, b.date_from, addDays(b.date_to, -1), b.booking_no);
+      if (busy.size) fail(409, `${[...busy].sort()[0]} 에 이미 확정된 예약이나 막은 날이 있어요`);
+    }
+  }
   const [u] = await db.update(`bookings?booking_no=eq.${enc(body.bookingNo || "")}`, {
     status: body.status,
     admin_memo: String(body.memo || "").slice(0, 500) || null,
   });
   if (!u) fail(404, "예약·문의를 찾을 수 없어요");
   return { booking: u };
+}
+
+/* ---------------- 체험 일정(회차) ----------------
+ * 관리자가 상품별로 날짜·시간·정원을 만들어 두면, 손님은 남은 자리가 있는 회차를 골라 예약 문의를 남깁니다.
+ * 자리 계산: 새 문의·연락함·예약확정 상태의 인원을 모두 셉니다 (취소·완료는 제외).
+ */
+const ACTIVE_BK = "status=in.(new,contacted,confirmed)";
+const kstNowHM = () => new Date(Date.now() + 9 * 36e5).toISOString().slice(11, 16);
+const isTime = t => /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+const addDays = (ymd, n) => { const d = new Date(ymd + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const slotOpen = s => s.slot_date > kstToday() || (s.slot_date === kstToday() && s.slot_time > kstNowHM());
+const pid = v => /^[A-Za-z0-9_-]{1,24}$/.test(String(v || "")) ? String(v) : fail(400, "상품을 확인해 주세요");
+
+async function usedBySlot(db, ids) {
+  if (!ids.length) return {};
+  const rows = await db.select(`bookings?slot_id=in.(${ids.join(",")})&${ACTIVE_BK}&select=slot_id,people`);
+  const used = {};
+  for (const r of rows) used[r.slot_id] = (used[r.slot_id] || 0) + (r.people || 0);
+  return used;
+}
+
+async function publicSlots({ url, db }) {
+  const product = pid(url.searchParams.get("product"));
+  const to = addDays(kstToday(), 120);
+  const slots = (await db.select(`slots?product_id=eq.${enc(product)}&closed=eq.false&slot_date=gte.${kstToday()}&slot_date=lte.${to}&select=id,slot_date,slot_time,capacity&order=slot_date.asc,slot_time.asc&limit=500`)).filter(slotOpen);
+  const used = await usedBySlot(db, slots.map(s => s.id));
+  return { today: kstToday(), slots: slots.map(s => ({ id: s.id, date: s.slot_date, time: s.slot_time, left: Math.max(0, s.capacity - (used[s.id] || 0)) })) };
+}
+
+async function adminSlots({ env, req, url, db }) {
+  await requireAdmin(env, req);
+  const product = pid(url.searchParams.get("product"));
+  const from = isDate(url.searchParams.get("from") || "") ? url.searchParams.get("from") : addDays(kstToday(), -7);
+  const to = addDays(from, 186);
+  const slots = await db.select(`slots?product_id=eq.${enc(product)}&slot_date=gte.${from}&slot_date=lte.${to}&select=*&order=slot_date.asc,slot_time.asc&limit=1000`);
+  const used = await usedBySlot(db, slots.map(s => s.id));
+  return { today: kstToday(), slots: slots.map(s => ({ ...s, booked: used[s.id] || 0 })) };
+}
+
+async function adminCreateSlots({ env, req, body, db }) {
+  await requireAdmin(env, req);
+  const product = pid(body.product);
+  const { products } = await catalog(env);
+  const p = products.find(x => x.id === product);
+  if (!p || !p.ticket || p.cat === "stay") fail(400, "체험 상품만 일정을 만들 수 있어요");
+  const from = String(body.from || ""), to = String(body.to || "") || from;
+  if (!isDate(from) || !isDate(to)) fail(400, "시작일과 종료일을 골라 주세요");
+  if (to < from) fail(400, "종료일이 시작일보다 빨라요");
+  if (from < kstToday()) fail(400, "지난 날짜에는 일정을 만들 수 없어요");
+  if (to > addDays(from, 186)) fail(400, "한 번에 6개월까지만 만들 수 있어요");
+  const weekdays = (Array.isArray(body.weekdays) ? body.weekdays : []).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6);
+  if (!weekdays.length) fail(400, "요일을 하나 이상 골라 주세요");
+  const times = [...new Set((Array.isArray(body.times) ? body.times : []).map(t => String(t).trim()))].filter(Boolean);
+  if (!times.length || times.some(t => !isTime(t))) fail(400, "시간을 10:00 처럼 입력해 주세요");
+  const capacity = Number(body.capacity);
+  if (!Number.isInteger(capacity) || capacity < 1 || capacity > 500) fail(400, "정원은 1~500 사이 숫자로 입력해 주세요");
+  const rows = [];
+  for (let d = from; d <= to; d = addDays(d, 1))
+    if (weekdays.includes(new Date(d + "T00:00:00Z").getUTCDay())) for (const t of times) rows.push({ product_id: product, slot_date: d, slot_time: t, capacity });
+  if (!rows.length) fail(400, "고른 기간에 해당 요일이 없어요");
+  if (rows.length > 400) fail(400, `일정이 ${rows.length}개로 너무 많아요. 한 번에 400개까지 만들 수 있어요`);
+  const made = await db.insertMany("slots", rows, "product_id,slot_date,slot_time");
+  return { created: made.length, skipped: rows.length - made.length };
+}
+
+async function adminSlotUpdate({ env, req, body, db }) {
+  await requireAdmin(env, req);
+  const id = Number(body.id) || 0;
+  const [s] = await db.select(`slots?id=eq.${id}&select=*`);
+  if (!s) fail(404, "이미 삭제된 일정이에요");
+  const booked = (await usedBySlot(db, [id]))[id] || 0;
+  if (body.remove) {
+    if (booked) fail(409, `이 일정에 ${booked}명의 예약·문의가 있어요. 먼저 예약을 취소하거나 '닫기'를 이용해 주세요`);
+    await db.remove(`slots?id=eq.${id}`);
+    return { removed: true };
+  }
+  const patch = {};
+  if (body.capacity !== undefined) {
+    const c = Number(body.capacity);
+    if (!Number.isInteger(c) || c < 1 || c > 500) fail(400, "정원은 1~500 사이 숫자로 입력해 주세요");
+    if (c < booked) fail(409, `이미 ${booked}명이 예약해서 정원을 ${booked}명보다 줄일 수 없어요`);
+    patch.capacity = c;
+  }
+  if (body.time !== undefined) {
+    const t = String(body.time).trim();
+    if (!isTime(t)) fail(400, "시간을 10:00 처럼 입력해 주세요");
+    if (t !== s.slot_time) {
+      const dup = await db.select(`slots?product_id=eq.${enc(s.product_id)}&slot_date=eq.${s.slot_date}&slot_time=eq.${enc(t)}&select=id`);
+      if (dup.length) fail(409, `${s.slot_date} ${t} 일정이 이미 있어요`);
+    }
+    patch.slot_time = t;
+  }
+  if (body.closed !== undefined) patch.closed = !!body.closed;
+  if (!Object.keys(patch).length) fail(400, "바꿀 내용이 없어요");
+  const [u] = await db.update(`slots?id=eq.${id}`, patch);
+  if (patch.slot_time) await db.update(`bookings?slot_id=eq.${id}`, { slot_time: patch.slot_time });
+  return { slot: { ...u, booked } };
+}
+
+/* ---------------- 숙박 달력 ----------------
+ * 손님에게 '예약 불가'로 보이는 날 = 예약확정된 숙박의 밤 + 관리자가 막은 날
+ */
+async function stayUnavailable(db, product, from, to, exceptNo) {
+  const out = new Set();
+  const [bk, blocks] = await Promise.all([
+    db.select(`bookings?product_id=eq.${enc(product)}&kind=eq.stay&status=eq.confirmed&date_from=lte.${to}&date_to=gt.${from}&select=booking_no,date_from,date_to`),
+    db.select(`stay_blocks?product_id=eq.${enc(product)}&block_date=gte.${from}&block_date=lte.${to}&select=block_date`),
+  ]);
+  for (const b of bk) {
+    if (b.booking_no === exceptNo) continue;
+    for (let d = b.date_from; d < b.date_to; d = addDays(d, 1)) if (d >= from && d <= to) out.add(d);
+  }
+  for (const b of blocks) out.add(b.block_date);
+  return out;
+}
+
+async function publicStay({ url, db }) {
+  const product = pid(url.searchParams.get("product"));
+  const from = kstToday(), to = addDays(from, 366);
+  return { today: from, unavailable: [...await stayUnavailable(db, product, from, to)].sort() };
+}
+
+async function adminStay({ env, req, url, db }) {
+  await requireAdmin(env, req);
+  const product = pid(url.searchParams.get("product"));
+  const month = /^\d{4}-\d{2}$/.test(url.searchParams.get("month") || "") ? url.searchParams.get("month") : kstToday().slice(0, 7);
+  const from = month + "-01", to = addDays(addDays(from, 31).slice(0, 7) + "-01", -1);
+  const [bookings, blocks] = await Promise.all([
+    db.select(`bookings?product_id=eq.${enc(product)}&kind=eq.stay&status=in.(new,contacted,confirmed)&date_from=lte.${to}&date_to=gt.${from}&select=booking_no,name,tel,people,status,date_from,date_to&order=date_from.asc`),
+    db.select(`stay_blocks?product_id=eq.${enc(product)}&block_date=gte.${from}&block_date=lte.${to}&select=block_date,note`),
+  ]);
+  return { today: kstToday(), month, from, to, bookings, blocks };
+}
+
+async function adminStayBlock({ env, req, body, db }) {
+  await requireAdmin(env, req);
+  const product = pid(body.product);
+  const dates = (Array.isArray(body.dates) ? body.dates : [body.date]).map(String).filter(isDate).slice(0, 62);
+  if (!dates.length) fail(400, "날짜를 골라 주세요");
+  if (body.blocked) {
+    await db.insertMany("stay_blocks", dates.map(d => ({ product_id: product, block_date: d, note: String(body.note || "").slice(0, 100) || null })), "product_id,block_date");
+  } else {
+    await db.remove(`stay_blocks?product_id=eq.${enc(product)}&block_date=in.(${dates.join(",")})`);
+  }
+  return { ok: true };
+}
+
+/* ---------------- 상품 관리 (GitHub 저장) ----------------
+ * data/products.json 과 사진을 GitHub 저장소에 직접 커밋합니다. GitHub Pages 가 1~2분 뒤 홈페이지에 반영해요.
+ */
+const ghBranch = env => env.GITHUB_BRANCH || "main";
+const b64enc = bytes => { let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(s); };
+const b64dec = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
+async function gh(env, path, init) {
+  if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) fail(500, "상품 관리를 쓰려면 Cloudflare 워커에 GITHUB_TOKEN · GITHUB_REPO 를 넣어 주세요");
+  const url = `https://api.github.com/repos/${env.GITHUB_REPO}/contents/${path}` + (init ? "" : `?ref=${enc(ghBranch(env))}`);
+  return fetch(url, { ...init, headers: {
+    Authorization: `Bearer ${env.GITHUB_TOKEN}`, Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "fromganghwa-admin",
+    ...(init ? { "Content-Type": "application/json" } : {}),
+  } });
+}
+async function ghGet(env, path) {
+  const r = await gh(env, path);
+  if (!r.ok) { console.error("GH_GET", path, r.status, await r.text()); fail(502, "GitHub 에서 상품 파일을 읽지 못했어요. 토큰 설정을 확인해 주세요"); }
+  const j = await r.json();
+  return { text: new TextDecoder().decode(b64dec(String(j.content || "").replace(/\s/g, ""))), sha: j.sha };
+}
+async function ghPut(env, path, bytes, message, sha) {
+  const payload = { message, content: b64enc(bytes), branch: ghBranch(env) };
+  if (sha) payload.sha = sha;
+  const r = await gh(env, path, { method: "PUT", body: JSON.stringify(payload) });
+  if (r.status === 409 || (r.status === 422 && sha)) fail(409, "그사이 다른 곳에서 상품이 바뀌었어요. 새로고침한 뒤 다시 저장해 주세요");
+  if (!r.ok) { console.error("GH_PUT", path, r.status, await r.text()); fail(502, "GitHub 에 저장하지 못했어요. 토큰 권한(Contents 읽기·쓰기)을 확인해 주세요"); }
+  const j = await r.json();
+  return j.content && j.content.sha;
+}
+
+async function adminProducts({ env, req }) {
+  await requireAdmin(env, req);
+  const [file, siteFile] = await Promise.all([ghGet(env, "data/products.json"), ghGet(env, "data/site.json")]);
+  let items, site;
+  try { items = JSON.parse(file.text); site = JSON.parse(siteFile.text); } catch { fail(500, "data/products.json 형식이 깨져 있어요"); }
+  return { items, sha: file.sha, categories: (site.categories || []).filter(c => c.id !== "all").map(c => ({ id: c.id, name: c.name })) };
+}
+
+const txt = (v, max) => String(v == null ? "" : v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, max);
+function cleanProduct(raw, catIds, n) {
+  const bad = msg => fail(400, `${n}번째 상품: ${msg}`);
+  if (!raw || typeof raw !== "object") bad("형식이 잘못됐어요");
+  const p = {};
+  p.id = txt(raw.id, 24); if (!/^[a-z0-9_-]{1,24}$/i.test(p.id)) bad("상품 코드가 잘못됐어요");
+  p.cat = txt(raw.cat, 20); if (!catIds.includes(p.cat)) bad("분류를 골라 주세요");
+  p.name = txt(raw.name, 80); if (!p.name) bad("상품 이름을 입력해 주세요");
+  p.sub = txt(raw.sub, 120);
+  const money = (v, label) => { const x = Number(v || 0); if (!Number.isInteger(x) || x < 0 || x > 100000000) bad(`${label}은 0원 이상 숫자로 입력해 주세요`); return x; };
+  p.price = money(raw.price, "가격"); p.was = money(raw.was, "정가");
+  const image = txt(raw.image, 200);
+  if (image && (!/^assets\/images\/[A-Za-z0-9._\/-]+\.(jpe?g|png|webp)$/.test(image) || image.includes(".."))) bad("사진 경로가 잘못됐어요");
+  p.image = image;
+  if (Array.isArray(raw.tile) && raw.tile.length === 2 && raw.tile.every(c => /^#[0-9a-f]{3,8}$/i.test(c))) p.tile = raw.tile;
+  p.flag = txt(raw.flag, 16);
+  p.taxFree = !!raw.taxFree;
+  p.origin = txt(raw.origin, 80); p.unit = txt(raw.unit, 80); p.pack = txt(raw.pack, 80);
+  p.sold = Math.max(0, Math.floor(Number(raw.sold) || 0));
+  if (raw.ticket) p.ticket = true;
+  if (raw.soon) p.soon = true;
+  p.detail = txt(raw.detail, 2000);
+  p.story = (Array.isArray(raw.story) ? raw.story : []).slice(0, 12).map(s => {
+    const o = { title: txt(s && s.title, 120), text: txt(s && s.text, 3000) };
+    const list = (Array.isArray(s && s.list) ? s.list : []).map(x => txt(x, 200)).filter(Boolean).slice(0, 20);
+    if (list.length) o.list = list;
+    return o;
+  }).filter(s => s.title || s.text);
+  p.info = (Array.isArray(raw.info) ? raw.info : []).slice(0, 30).map(r => [txt(r && r[0], 40), txt(r && r[1], 300)]).filter(r => r[0] && r[1]);
+  return p;
+}
+
+async function adminSaveProducts({ env, req, body }) {
+  const user = await requireAdmin(env, req);
+  if (!Array.isArray(body.items) || typeof body.sha !== "string") fail(400, "요청 형식이 잘못됐어요");
+  if (body.items.length > 300) fail(400, "상품은 300개까지 저장할 수 있어요");
+  const site = JSON.parse((await ghGet(env, "data/site.json")).text);
+  const catIds = (site.categories || []).filter(c => c.id !== "all").map(c => c.id);
+  const items = body.items.map((x, i) => cleanProduct(x, catIds, i + 1));
+  const seen = new Set();
+  for (const it of items) { if (seen.has(it.id)) fail(400, `상품 코드 ${it.id} 가 두 번 들어갔어요`); seen.add(it.id); }
+  const text = "[\n" + items.map(it => "  " + JSON.stringify(it)).join(",\n\n") + "\n]\n";
+  const who = String(user.email || "").replace(/@.*/, "");
+  const sha = await ghPut(env, "data/products.json", new TextEncoder().encode(text), `관리자 상품 수정 (${who})${body.note ? " - " + txt(body.note, 60) : ""}`, body.sha);
+  return { sha, count: items.length };
+}
+
+async function adminImage({ env, req, body }) {
+  await requireAdmin(env, req);
+  const id = txt(body.id, 24);
+  if (!/^[a-z0-9_-]{1,24}$/i.test(id)) fail(400, "상품 코드가 잘못됐어요");
+  const data = String(body.data || "");
+  if (!data || data.length > 4000000 || !/^[A-Za-z0-9+/]+=*$/.test(data)) fail(400, "사진이 너무 크거나 형식이 잘못됐어요 (3MB 이하 JPG)");
+  const bytes = b64dec(data);
+  if (!(bytes[0] === 0xff && bytes[1] === 0xd8)) fail(400, "JPG 사진만 올릴 수 있어요");
+  const path = `assets/images/products/${id.toLowerCase()}-${Date.now().toString(36)}.jpg`;
+  await ghPut(env, path, bytes, `관리자 상품 사진 (${id})`);
+  return { path };
 }
 
 /* ---------------- 상품 후기 · 상품 문의 (관리자) ----------------
@@ -589,6 +882,8 @@ function makeDb(env) {
   return {
     select: path => call("GET", path),
     insert: (table, row) => call("POST", table, row, { Prefer: "return=representation" }).then(r => r[0]),
+    // 이미 있는 줄(onConflict 기준)은 건너뛰고 새로 들어간 줄만 돌려줌
+    insertMany: (table, rows, onConflict) => call("POST", `${table}?on_conflict=${onConflict}`, rows, { Prefer: "resolution=ignore-duplicates,return=representation" }).then(r => r || []),
     update: (path, patch) => call("PATCH", path, patch, { Prefer: "return=representation" }),
     remove: path => call("DELETE", path),
   };

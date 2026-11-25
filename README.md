@@ -125,6 +125,40 @@ GitHub 웹에서 `data/products.json` 을 열고 ✏️(연필) → 수정 → *
 3. 마이페이지를 새로고침하면 '관리자 페이지' 버튼이 보입니다.
 - 관리자에서 빼려면 `ADMIN_EMAILS` 에서 그 회원번호를 지우면 됩니다.
 
+### 관리자: 체험 일정 · 숙박 달력 · 상품 관리 (2026-11 추가)
+
+`admin.html` 에 탭 3개가 생겼습니다.
+
+- **체험 일정**: 체험 상품마다 날짜·시간·정원을 만들어 둡니다.
+  - '일정 한꺼번에 만들기' → 기간, 요일, 시간(예: `10:00, 14:00`), 정원 → 만들기
+  - 회차마다 시간·정원 바꾸기 / 닫기(손님에게 숨김) / 삭제(예약이 없을 때만)
+  - 손님 예약 폼에는 남은 자리가 있는 회차만 고를 수 있게 나오고, 인원은 남은 자리까지만 늘어납니다.
+  - 남은 자리 계산: 새 문의·연락함·예약확정 인원을 모두 셉니다 (취소·완료 제외).
+  - 일정을 하나도 안 만든 체험은 예전처럼 손님이 희망 날짜를 직접 적습니다.
+- **숙박 달력**: 달마다 예약확정(초록)·문의 중(노랑)·막은 날(회색)을 봅니다.
+  - 날짜를 누르면 그날을 막거나 풉니다 (휴무·정비 등).
+  - 손님 달력에는 **예약확정된 밤 + 막은 날**이 '예약 불가'로 보입니다. 문의 중인 날은 막히지 않아요.
+  - 겹치는 숙박을 '예약확정'으로 바꾸려 하면 서버가 막아 줍니다.
+- **상품 관리**: 분류별로 상품을 추가·수정·삭제하고 순서(▲▼)를 바꿉니다. 사진도 올릴 수 있어요.
+  - 저장하면 서버가 GitHub 의 `data/products.json`(사진은 `assets/images/products/`)에 바로 커밋하고, 1~2분 뒤 홈페이지에 반영됩니다.
+
+처음 한 번 설정 (순서대로):
+
+1. **Supabase** → SQL Editor 에 `server/2026-11_schedule.sql` 을 붙여넣고 Run
+2. **GitHub 토큰 만들기** (상품 관리용)
+   - https://github.com/settings/personal-access-tokens/new (Fine-grained token)
+   - Token name: `fromganghwa-admin`, Expiration: 원하는 기간 (만료되면 새로 만들어 바꿔 넣기)
+   - Repository access: **Only select repositories** → `FROMGANGHWA`
+   - Permissions → Repository permissions → **Contents: Read and write** (다른 권한은 건드리지 않기)
+   - Generate token → 나온 값을 복사 (다시 볼 수 없어요)
+3. **Cloudflare** → `fromganghwa-api` → Settings → Variables and Secrets
+   - `GITHUB_TOKEN` = 복사한 토큰 (**Secret** 타입으로)
+   - `GITHUB_REPO` = `dlawngns94/FROMGANGHWA` (Text)
+4. **Cloudflare** → Edit code → `server/worker.js` 전체 붙여넣기 → Deploy
+5. 그다음 GitHub 에 사이트 올리기
+
+> 관리자 화면에서 상품을 바꾸면 GitHub 에 바로 기록되므로, 이 컴퓨터에서 사이트를 고쳐 올리기 전에는 먼저 `git pull` 로 받아 와야 합니다.
+
 ### Supabase 자동 정지 막기 (2026-11 추가)
 
 Supabase 무료 플랜은 한동안 쓰지 않으면 프로젝트가 멈춥니다 (로그인·문의·관리자 모두 안 됨).
