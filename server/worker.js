@@ -30,6 +30,7 @@
  *  POST /admin/image         관리자: 상품 사진 올리기 (assets/images/products/)
  *  GET  /me                  내 관리자 여부 (관리자면 새 예약·문의 건수도)
  *  POST /me/withdraw         회원 탈퇴
+ *  GET  /admin/counts        관리자: 메뉴·탭 옆에 보여 줄 처리할 건수
  *  GET  /admin/inquiries     관리자: 구매 문의 목록
  *  POST /admin/inquiry       관리자: 문의 상태·메모 저장
  *  GET  /admin/bookings      관리자: 예약·문의 목록
@@ -143,6 +144,7 @@ const ROUTES = {
   "POST /booking": booking,
   "GET /admin/bookings": adminBookings,
   "POST /admin/booking": adminBookingUpdate,
+  "GET /admin/counts": adminCounts,
   "GET /admin/inquiries": adminInquiries,
   "POST /admin/inquiry": adminInquiryUpdate,
   "GET /admin/reviews": adminReviews,
@@ -924,6 +926,20 @@ async function requireAdmin(env, req) {
   return user;
 }
 
+/* 관리자 화면: 메뉴·탭 옆 숫자 (처리할 일만 셈) */
+async function adminCounts({ env, req, db }) {
+  await requireAdmin(env, req);
+  const [bkNew, stayNew, inqNew, qOpen, paid, cancelreq] = await Promise.all([
+    db.count("bookings?status=eq.new&select=booking_no"),
+    db.count(`bookings?kind=eq.stay&status=in.(new,contacted)&date_to=gte.${kstToday()}&select=booking_no`),
+    db.count("inquiries?status=eq.new&select=inquiry_no"),
+    db.count("questions?answer=is.null&select=id"),
+    db.count("orders?status=eq.paid&select=order_no"),
+    db.count("orders?status=eq.paid&cancel_req->>state=eq.requested&select=order_no"),
+  ]);
+  return { counts: { booking: { new: bkNew }, stay: { open: stayNew }, inquiry: { new: inqNew }, question: { open: qOpen }, order: { paid, cancelreq } } };
+}
+
 /* 마이페이지: 관리자면 '관리자 페이지' 버튼과 새로 들어온 건수를 보여 줌 */
 async function meInfo({ env, req, db }) {
   const user = await getUser(env, req);
@@ -1006,6 +1022,12 @@ function makeDb(env) {
     insertMany: (table, rows, onConflict) => call("POST", `${table}?on_conflict=${onConflict}`, rows, { Prefer: "resolution=ignore-duplicates,return=representation" }).then(r => r || []),
     update: (path, patch) => call("PATCH", path, patch, { Prefer: "return=representation" }),
     remove: path => call("DELETE", path),
+    // 줄 수만 셈 (내용은 안 가져옴)
+    count: async path => {
+      const r = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, { method: "HEAD", headers: { ...sbHeaders(env), Prefer: "count=exact" } });
+      if (!r.ok) { console.error("DB COUNT", path, r.status); return 0; }
+      return Number((r.headers.get("Content-Range") || "").split("/")[1]) || 0;
+    },
   };
 }
 

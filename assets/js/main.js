@@ -1728,17 +1728,26 @@
     const draw = () => {
       const sec = SECTIONS[section];
       view.innerHTML = `<div class="wrap"><div class="page-title"><h2>관리자</h2><p>관리자 전용 화면</p></div>
-        <div class="adm-sec">${Object.entries(SECTIONS).map(([k, s]) => `<button data-sec="${k}" aria-pressed="${section === k}">${s.name}</button>`).join("")}</div>
+        <div class="adm-sec">${secButtons()}</div>
         <div class="toolbar"><span class="num">총 ${rows.length}건</span>
-          <div class="sorts">${Object.entries(sec.tabs).map(([k, v]) => `<button data-tab="${k}" aria-pressed="${status === k}">${v}</button>`).join("")}</div></div>
+          <div class="sorts">${Object.entries(sec.tabs).map(([k, v]) => `<button data-tab="${k}" aria-pressed="${status === k}">${v}${cnt(tabCount(section, k))}</button>`).join("")}</div></div>
         <div class="box ord-list adm">${rows.length ? rows.map({ booking: bkRow, inquiry: inqRow, order: orderRow, review: revRow, question: qRow }[section]).join("") : `<p class="empty">${sec.name} 내역이 없어요.</p>`}</div>
         <div style="height:72px"></div></div>`;
     };
+    // 메뉴·탭 옆 숫자: 처리할 일이 있는 곳만 주황 동그라미로
+    let counts = {};
+    const cnt = n => n ? `<span class="adm-cnt num" aria-label="${n}건">${n > 99 ? "99+" : n}</span>` : "";
+    const SEC_COUNT = { booking: c => c.booking && c.booking.new, stay: c => c.stay && c.stay.open, inquiry: c => c.inquiry && c.inquiry.new, question: c => c.question && c.question.open, order: c => c.order && c.order.paid };
+    const TAB_COUNT = { booking: { new: "booking.new" }, inquiry: { new: "inquiry.new" }, question: { open: "question.open" }, order: { paid: "order.paid", cancelreq: "order.cancelreq" } };
+    const tabCount = (sec, tab) => { const k = (TAB_COUNT[sec] || {})[tab]; if (!k) return 0; const [a, b] = k.split("."); return (counts[a] || {})[b] || 0; };
+    const secButtons = () => Object.entries(SECTIONS).map(([k, s]) => `<button data-sec="${k}" aria-pressed="${section === k}">${s.name}${cnt(SEC_COUNT[k] ? SEC_COUNT[k](counts) : 0)}</button>`).join("");
+    const refreshCounts = () => api("/admin/counts", null, "GET").then(d => { counts = d.counts || {}; const bar = $(".adm-sec", view); if (bar) bar.innerHTML = secButtons(); view.querySelectorAll("[data-tab]").forEach(b => { const old = b.querySelector(".adm-cnt"); if (old) old.remove(); b.insertAdjacentHTML("beforeend", cnt(tabCount(section, b.dataset.tab))); }); }).catch(() => {});
     const load = async () => {
+      refreshCounts();
       if (SECTIONS[section].custom) {
         // 체험 일정·숙박 달력·상품 관리는 각자 화면을 그림
         view.innerHTML = `<div class="wrap"><div class="page-title"><h2>관리자</h2><p>관리자 전용 화면</p></div>
-          <div class="adm-sec">${Object.entries(SECTIONS).map(([k, s]) => `<button data-sec="${k}" aria-pressed="${section === k}">${s.name}</button>`).join("")}</div>
+          <div class="adm-sec">${secButtons()}</div>
           <div id="admBody"></div><div style="height:72px"></div></div>`;
         return SECTIONS[section].custom($("#admBody"));
       }
