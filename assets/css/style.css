@@ -610,3 +610,18 @@ a.add{text-decoration:none}
 .adm-cnt{display:inline-grid;place-items:center;min-width:20px;height:20px;padding-inline:6px;margin-left:6px;border-radius:10px;background:#f57c00;color:#fff;font-size:12px;font-weight:700;line-height:1;vertical-align:1px;box-shadow:0 0 0 2px var(--bg)}
 .adm-sec button{display:inline-flex;align-items:center}
 .adm-sec button[aria-pressed="true"] .adm-cnt{box-shadow:0 0 0 2px var(--brand)}
+
+/* 상품설명 단락 사진 */
+.story-img{margin:0 0 22px}
+.story-b>.story-img:last-child{margin:24px 0 0}
+.story-img img{display:block;width:100%;height:auto;border-radius:6px}
+.story-b.only-img{max-width:760px}
+.story-b.only-img .story-img{margin:0}
+.pe-st-img{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pe-st-img>img{width:96px;height:72px;object-fit:cover;border-radius:4px;border:1px solid var(--line)}
+.pe-st-img>div{flex:1;min-width:0;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.pe-st-img select{width:auto;flex:none;height:36px;border:1px solid var(--line);border-radius:4px;padding:0 8px;background:var(--bg);font:inherit;font-size:13px}
+.pe-st .pe-st-pick{display:inline-flex;align-items:center;cursor:pointer}
+.pe-st-btns{display:flex;gap:6px;flex-wrap:wrap}
+.pe-st-btns .btn{height:36px;padding-inline:12px;font-size:13px;flex:none}
+.pe-st-btns .btn:disabled{opacity:.35}

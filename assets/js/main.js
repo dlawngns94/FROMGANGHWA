@@ -505,11 +505,16 @@
         ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">`
         : `<div class="story-tile" style="background:${esc(bg)};color:${esc(fg)}"><span>${esc(SITE.nameEn)}</span><b>${esc(p.name)}</b></div>`}
         <figcaption><span>${esc(SITE.nameEn)}</span><h3>${esc(p.name)}</h3><p>${esc(p.sub)}</p></figcaption></figure>
-      ${blocks.map((b, i) => `<div class="story-b">
-        <span class="story-no num">${String(i + 1).padStart(2, "0")}</span>
-        <h4>${esc(b.title)}</h4><p>${esc(b.text)}</p>
+      ${(() => { let no = 0; return blocks.map(b => {
+        const pic = b.img ? `<figure class="story-img"><img src="${esc(b.img)}" alt="${esc(b.title || p.name)}" loading="lazy"></figure>` : "";
+        if (!(b.title || b.text || (b.list && b.list.length))) return `<div class="story-b only-img">${pic}</div>`;
+        return `<div class="story-b">
+        ${b.pos === "top" ? pic : ""}
+        <span class="story-no num">${String(++no).padStart(2, "0")}</span>
+        ${b.title ? `<h4>${esc(b.title)}</h4>` : ""}${b.text ? `<p>${esc(b.text)}</p>` : ""}
         ${b.list ? `<ul>${b.list.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
-      </div>`).join("")}
+        ${b.pos === "top" ? "" : pic}
+      </div>`; }).join(""); })()}
     </div>`;
   }
 
@@ -1516,6 +1521,7 @@
     const catName = id => (cats.find(c => c.id === id) || { name: id }).name;
     const won0 = n => n ? won(n) + "원" : "가격 문의";
     const nextId = () => { let n = items.reduce((m, p) => Math.max(m, +(/^p(\d+)$/.exec(p.id) || [0, 0])[1]), 0) + 1; return "p" + String(n).padStart(2, "0"); };
+    const stPrev = {};   // 방금 올린 단락 사진 미리보기 (홈페이지 반영 전)
     const thumb = p => p.image ? `<img src="${esc(p._preview || p.image)}" alt="">` : `<span class="noimg">사진 없음</span>`;
     const save = async (note, msgOk) => {
       const r = await api("/admin/products", { items: items.map(({ _preview, ...p }) => p), sha, note });
@@ -1560,8 +1566,15 @@
               <input data-st-f="title" value="${esc(s.title || "")}" placeholder="단락 제목" maxlength="120">
               <textarea data-st-f="text" rows="3" maxlength="3000" placeholder="본문">${esc(s.text || "")}</textarea>
               <textarea data-st-f="list" rows="2" placeholder="체크 목록 (한 줄에 하나, 비워도 돼요)">${esc((s.list || []).join("\n"))}</textarea>
-              <button type="button" class="btn ghost" data-st-del>이 단락 삭제</button></div>`).join("")}
-            <button type="button" class="btn ghost" data-st-add>+ 단락 추가</button></div></div>
+              <div class="pe-st-img"><input type="hidden" data-st-f="img" value="${esc(s.img || "")}">
+                ${s.img ? `<img src="${esc(stPrev[s.img] || s.img)}" alt="">` : ""}
+                <div><label class="btn ghost pe-st-pick">${s.img ? "사진 바꾸기" : "+ 사진 넣기"}<input type="file" accept="image/jpeg,image/png,image/webp" data-st-file hidden></label>
+                  ${s.img ? `<select data-st-f="pos" aria-label="사진 위치"><option value="bottom" ${s.pos !== "top" ? "selected" : ""}>글 아래에</option><option value="top" ${s.pos === "top" ? "selected" : ""}>글 위에</option></select>
+                  <button type="button" class="btn ghost" data-st-imgdel>사진 빼기</button>` : ""}</div></div>
+              <div class="pe-st-btns"><button type="button" class="btn ghost" data-st-up ${i === 0 ? "disabled" : ""} aria-label="위로">▲</button><button type="button" class="btn ghost" data-st-down ${i === p.story.length - 1 ? "disabled" : ""} aria-label="아래로">▼</button>
+                <button type="button" class="btn ghost" data-st-del>이 단락 삭제</button></div></div>`).join("")}
+            <p class="mode-note">제목·본문을 비우고 사진만 넣으면 단락 사이에 사진만 크게 보여요. ▲▼로 순서를 바꿀 수 있어요.</p>
+            <div class="pe-st-btns"><button type="button" class="btn ghost" data-st-add>+ 단락 추가</button><button type="button" class="btn ghost" data-st-addimg>+ 사진만 추가</button></div></div></div>
           <div class="field top"><label for="pe-info">상세정보 표</label><div><textarea id="pe-info" data-pe="info" rows="4" placeholder="항목 | 내용 (한 줄에 하나)&#10;예: 보관방법 | 서늘한 곳">${esc((p.info || []).map(r => r.join(" | ")).join("\n"))}</textarea></div></div>
         </div>
         <div class="pe-actions"><button type="button" class="btn ghost" data-p-cancel>취소</button><button type="button" class="btn primary" data-p-save>저장</button></div>
@@ -1576,8 +1589,10 @@
         const g = f => $(`[data-st-f="${f}"]`, el).value.trim();
         const o = { title: g("title"), text: g("text") }, list = g("list").split("\n").map(x => x.trim()).filter(Boolean);
         if (list.length) o.list = list;
+        const img = g("img");
+        if (img) { o.img = img; const pos = $('[data-st-f="pos"]', el); if (pos && pos.value === "top") o.pos = "top"; }
         return o;
-      }).filter(s => s.title || s.text);
+      }).filter(s => s.title || s.text || s.list || s.img);
       p.info = v("info").split("\n").map(l => l.split("|").map(x => x.trim())).filter(r => r[0] && r[1]).map(r => [r[0], r.slice(1).join(" | ")]);
     };
     const resizeJpeg = async file => {
@@ -1593,6 +1608,20 @@
       catch (err) { box.innerHTML = `<p class="empty">${esc(err.message)}</p>`; }
     };
     box.onchange = async e => {
+      const sf = e.target.closest("[data-st-file]");
+      if (sf && sf.files[0]) {
+        const i = +sf.closest("[data-st]").dataset.st;
+        readForm();
+        try {
+          toast("사진을 올리는 중이에요");
+          const url = await resizeJpeg(sf.files[0]);
+          const { path } = await api("/admin/image", { id: editing.p.id, data: url.split(",")[1] });
+          stPrev[path] = url;
+          if (editing.p.story[i]) editing.p.story[i].img = path; else editing.p.story.push({ title: "", text: "", img: path });
+          drawEdit(); toast("사진을 올렸어요. 저장을 눌러야 상품에 적용돼요");
+        } catch (err) { toast(err.message || "사진을 읽지 못했어요. JPG·PNG 사진을 골라 주세요"); }
+        return;
+      }
       const f = e.target.closest("[data-pe-file]"); if (!f || !f.files[0]) return;
       readForm();
       try {
@@ -1607,6 +1636,18 @@
       if (t.dataset.pf) { filter = t.dataset.pf; return drawList(); }
       if ("pNew" in t.dataset) { editing = { isNew: true, p: { id: nextId(), cat: filter !== "all" ? filter : (cats[0] || {}).id, name: "", sub: "", price: 0, was: 0, image: "", flag: "", taxFree: false, origin: "", unit: "", pack: "", sold: 0, detail: "", story: [], info: [] } }; return drawEdit(); }
       if ("stAdd" in t.dataset) { readForm(); editing.p.story.push({ title: "", text: "" }); return drawEdit(); }
+      if ("stAddimg" in t.dataset) {
+        // 사진만 있는 단락: 사진을 고르면 그때 단락이 생겨요
+        readForm(); editing.p.story.push({ title: "", text: "" }); drawEdit();
+        const last = [...box.querySelectorAll("[data-st-file]")].pop(); if (last) last.click();
+        return;
+      }
+      if ("stImgdel" in t.dataset) { readForm(); const s = editing.p.story[+t.closest("[data-st]").dataset.st]; if (s) { delete s.img; delete s.pos; } return drawEdit(); }
+      if ("stUp" in t.dataset || "stDown" in t.dataset) {
+        readForm(); const a = editing.p.story, i = +t.closest("[data-st]").dataset.st, j = i + ("stUp" in t.dataset ? -1 : 1);
+        if (a[i] && a[j]) [a[i], a[j]] = [a[j], a[i]];
+        return drawEdit();
+      }
       if ("stDel" in t.dataset) { readForm(); editing.p.story.splice(+t.closest("[data-st]").dataset.st, 1); return drawEdit(); }
       if ("pCancel" in t.dataset) { editing = null; return load(); }
       if ("pSave" in t.dataset) {
